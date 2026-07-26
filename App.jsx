@@ -25,11 +25,37 @@ body { margin: 0; }
 
 const empty = { cdNome: '', nomeMontador: '', tipoServico: '', modelo: '', cor: '', motor: '', chassi: '', horaInicio: '', horaFim: '', anomalia: '' };
 
+const CHECKLIST_ITENS = [
+  { chave: '1.1', categoria: '1 — Visual do Produto', texto: 'Carenagens isentas de riscos e ou danos visuais?' },
+  { chave: '1.2', categoria: '1 — Visual do Produto', texto: 'Paralamas dianteiro e traseiro em ordem?' },
+  { chave: '2.1', categoria: '2 — Sistema de Iluminação', texto: 'Farol, luzes de seta, luz de frenagem em funcionamento?' },
+  { chave: '3.1', categoria: '3 — Sistema de Rodagem', texto: 'Pneu frontal & Traseiro Cheio?' },
+  { chave: '3.2', categoria: '3 — Sistema de Rodagem', texto: 'Freios frontal e Traseiro operante?' },
+  { chave: '3.3', categoria: '3 — Sistema de Rodagem', texto: 'Guidão devidamente apertado?' },
+  { chave: '3.4', categoria: '3 — Sistema de Rodagem', texto: 'Trava de guidão em perfeito funcionamento?' },
+  { chave: '4.1', categoria: '4 — Acessórios', texto: 'Descanço central, lateral em correto funcionamento?' },
+  { chave: '4.2', categoria: '4 — Acessórios', texto: 'Suporte para pés em perfeito funcionamento?' },
+  { chave: '4.3', categoria: '4 — Acessórios', texto: 'Tapete instalado?' },
+  { chave: '4.4', categoria: '4 — Acessórios', texto: 'Retrovisores instalados?' },
+  { chave: '4.5', categoria: '4 — Acessórios', texto: 'Baú devidamente instalado?' },
+  { chave: '4.6', categoria: '4 — Acessórios', texto: 'Baú de assoalho, banco e traseiro com abertura correta?' },
+  { chave: '5.1', categoria: '5 — Sistema elétrico e eletrônico', texto: 'Conjunto de controle remoto em perfeito funcionamento?' },
+  { chave: '5.2', categoria: '5 — Sistema elétrico e eletrônico', texto: 'Painel de instrumentos em funcionamento adequado?' },
+  { chave: '5.3', categoria: '5 — Sistema elétrico e eletrônico', texto: 'Acionamento das chaves em perfeitas condições?' },
+  { chave: '5.4', categoria: '5 — Sistema elétrico e eletrônico', texto: 'Acionamento de abertura de bancos em perfeito funcionamento?' },
+  { chave: '5.5', categoria: '5 — Sistema elétrico e eletrônico', texto: 'Disjuntor geral acionando perfeitamente?' },
+  { chave: '5.6', categoria: '5 — Sistema elétrico e eletrônico', texto: 'Bateria disponível e com carga adequada?' },
+  { chave: '5.7', categoria: '5 — Sistema elétrico e eletrônico', texto: 'Carregador disponibilizado para envio ao cliente?' },
+  { chave: '6.1', categoria: '6 — Itens acabamento e apoio', texto: 'Emblemas e adesivos devidamente instalados?' },
+  { chave: '6.2', categoria: '6 — Itens acabamento e apoio', texto: 'Kit acessórios e-bike (chaves, bomba) disponibilizado?' },
+];
+
 export default function App() {
   const [screen, setScreen] = useState('carregando');
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
   const [senha2, setSenha2] = useState('');
+  const [funcao, setFuncao] = useState('');
   const [codigoAdmin, setCodigoAdmin] = useState('');
   const [codigoAtual, setCodigoAtual] = useState('');
   const [codigoNovo, setCodigoNovo] = useState('');
@@ -39,11 +65,36 @@ export default function App() {
   const [erro, setErro] = useState('');
   const [toast, setToast] = useState('');
   const [session, setSession] = useState(null);
-  const [perfil, setPerfil] = useState(null); // { email, role, active }
+  const [perfil, setPerfil] = useState(null);
   const [mostrarTrocaCodigo, setMostrarTrocaCodigo] = useState(false);
   const [form, setForm] = useState(empty);
   const [registros, setRegistros] = useState([]);
   const [loadingList, setLoadingList] = useState(false);
+
+  const [inspecaoRegistros, setInspecaoRegistros] = useState([]);
+  const [loadingInspecao, setLoadingInspecao] = useState(false);
+  const [filtroCdInspecao, setFiltroCdInspecao] = useState('');
+  const [edicoesInspecao, setEdicoesInspecao] = useState({});
+  const [checklistItemId, setChecklistItemId] = useState(null);
+
+  const [manutencaoRegistros, setManutencaoRegistros] = useState([]);
+  const [loadingManutencao, setLoadingManutencao] = useState(false);
+  const [filtroCdManutencao, setFiltroCdManutencao] = useState('');
+  const [edicoesManutencao, setEdicoesManutencao] = useState({});
+
+  const [expedicaoRegistros, setExpedicaoRegistros] = useState([]);
+  const [loadingExpedicao, setLoadingExpedicao] = useState(false);
+  const [filtroCdExpedicao, setFiltroCdExpedicao] = useState('');
+  const [statusPorItemExpedicao, setStatusPorItemExpedicao] = useState({});
+  const [itensParaEnvio, setItensParaEnvio] = useState([]);
+  const [formExpedicao, setFormExpedicao] = useState({ data: '', motorista: '', cpf: '', placa: '', chavePix: '', cliente: '', endereco: '', destino: '' });
+  const [numeroOrdemAtual, setNumeroOrdemAtual] = useState('');
+  const [pedidosPendentes, setPedidosPendentes] = useState([]);
+  const [loadingBusca, setLoadingBusca] = useState(false);
+  const [pedidoCarregado, setPedidoCarregado] = useState(null);
+  const [itensDoPedido, setItensDoPedido] = useState([]);
+  const [itensDisponiveisRevisao, setItensDisponiveisRevisao] = useState([]);
+  const [notaFiscal, setNotaFiscal] = useState('');
 
   useEffect(() => {
     if (toast) {
@@ -52,16 +103,11 @@ export default function App() {
     }
   }, [toast]);
 
-  // Sessão inicial + escuta de eventos de autenticação (login, logout, recuperação de senha)
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
-      if (data.session) {
-        carregarPerfilESeguir(data.session);
-      } else {
-        setScreen('login');
-      }
+      if (data.session) carregarPerfilESeguir(data.session);
+      else setScreen('login');
     });
-
     const { data: listener } = supabase.auth.onAuthStateChange((event, s) => {
       if (event === 'PASSWORD_RECOVERY') {
         setSession(s);
@@ -75,24 +121,11 @@ export default function App() {
   async function carregarPerfilESeguir(s) {
     setSession(s);
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('email, role, active')
-        .eq('id', s.user.id)
-        .single();
-      if (error || !data) {
-        setErro('Não foi possível carregar seu perfil.');
-        setScreen('login');
-        return;
-      }
-      if (!data.active) {
-        await supabase.auth.signOut();
-        setErro('Este cadastro foi desativado.');
-        setScreen('login');
-        return;
-      }
+      const { data, error } = await supabase.from('profiles').select('email, role, active, funcao').eq('id', s.user.id).single();
+      if (error || !data) { setErro('Não foi possível carregar seu perfil.'); setScreen('login'); return; }
+      if (!data.active) { await supabase.auth.signOut(); setErro('Este cadastro foi desativado.'); setScreen('login'); return; }
       setPerfil(data);
-      setScreen('producao');
+      setScreen('menu');
     } catch (err) {
       setErro('Erro ao carregar perfil: ' + (err?.message || String(err)));
       setScreen('login');
@@ -102,80 +135,37 @@ export default function App() {
   async function handleLogin(e) {
     if (e?.preventDefault) e.preventDefault();
     setErro('');
-    if (!email.trim() || !senha) {
-      setErro('Preencha email e senha.');
-      return;
-    }
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: email.trim().toLowerCase(),
-      password: senha,
-    });
-    if (error) {
-      setErro('Email ou senha inválidos.');
-      return;
-    }
+    if (!email.trim() || !senha) { setErro('Preencha email e senha.'); return; }
+    const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim().toLowerCase(), password: senha });
+    if (error) { setErro('Email ou senha inválidos.'); return; }
     await carregarPerfilESeguir(data.session);
   }
 
   async function handleCadastro(e) {
     if (e?.preventDefault) e.preventDefault();
     setErro('');
-    if (!email.trim() || senha.length < 4) {
-      setErro('Preencha email e uma senha com 4+ caracteres.');
-      return;
-    }
-    if (senha !== senha2) {
-      setErro('As senhas não coincidem.');
-      return;
-    }
-    const { error } = await supabase.auth.signUp({
-      email: email.trim().toLowerCase(),
-      password: senha,
-    });
-    if (error) {
-      setErro('Não foi possível cadastrar: ' + error.message);
-      return;
-    }
+    if (!email.trim() || senha.length < 4) { setErro('Preencha email e uma senha com 4+ caracteres.'); return; }
+    if (senha !== senha2) { setErro('As senhas não coincidem.'); return; }
+    if (!funcao.trim()) { setErro('Informe a função do funcionário.'); return; }
+    const { error } = await supabase.auth.signUp({ email: email.trim().toLowerCase(), password: senha, options: { data: { funcao: funcao.trim() } } });
+    if (error) { setErro('Não foi possível cadastrar: ' + error.message); return; }
     setToast('Cadastro criado. Faça login.');
-    setSenha(''); setSenha2('');
+    setSenha(''); setSenha2(''); setFuncao('');
     setScreen('login');
   }
 
   async function handleCadastroAdmin(e) {
     if (e?.preventDefault) e.preventDefault();
     setErro('');
-    if (!email.trim() || senha.length < 4) {
-      setErro('Preencha email e uma senha com 4+ caracteres.');
-      return;
-    }
-    if (senha !== senha2) {
-      setErro('As senhas não coincidem.');
-      return;
-    }
-    if (!codigoAdmin.trim()) {
-      setErro('Informe o código de administrador.');
-      return;
-    }
-    const { error: signUpError } = await supabase.auth.signUp({
-      email: email.trim().toLowerCase(),
-      password: senha,
-    });
-    if (signUpError) {
-      setErro('Não foi possível cadastrar: ' + signUpError.message);
-      return;
-    }
-    // signUp já autentica a sessão (se a confirmação de email estiver desativada no projeto)
+    if (!email.trim() || senha.length < 4) { setErro('Preencha email e uma senha com 4+ caracteres.'); return; }
+    if (senha !== senha2) { setErro('As senhas não coincidem.'); return; }
+    if (!codigoAdmin.trim()) { setErro('Informe o código de administrador.'); return; }
+    const { error: signUpError } = await supabase.auth.signUp({ email: email.trim().toLowerCase(), password: senha });
+    if (signUpError) { setErro('Não foi possível cadastrar: ' + signUpError.message); return; }
     const { data: sessionData } = await supabase.auth.getSession();
-    if (!sessionData.session) {
-      setToast('Cadastro criado. Confirme o email e depois faça login para virar administrador.');
-      setScreen('login');
-      return;
-    }
+    if (!sessionData.session) { setToast('Cadastro criado. Confirme o email e depois faça login para virar administrador.'); setScreen('login'); return; }
     const { data: ok, error: rpcError } = await supabase.rpc('tornar_admin', { codigo: codigoAdmin.trim() });
-    if (rpcError || !ok) {
-      setErro('Código de administrador incorreto. O cadastro foi criado como funcionário comum — peça a um administrador existente para te promover, ou tente novamente com o código certo.');
-      return;
-    }
+    if (rpcError || !ok) { setErro('Código de administrador incorreto. O cadastro foi criado como funcionário comum.'); return; }
     setToast('Administrador cadastrado com sucesso. Faça login.');
     await supabase.auth.signOut();
     setSenha(''); setSenha2(''); setCodigoAdmin('');
@@ -185,22 +175,10 @@ export default function App() {
   async function handleTrocarCodigoAdmin(e) {
     if (e?.preventDefault) e.preventDefault();
     setErro('');
-    if (codigoNovo.trim().length < 6) {
-      setErro('O novo código precisa ter pelo menos 6 caracteres.');
-      return;
-    }
-    if (codigoNovo.trim() !== codigoNovo2.trim()) {
-      setErro('Os dois campos de novo código não coincidem.');
-      return;
-    }
-    const { data: ok, error } = await supabase.rpc('trocar_codigo_admin', {
-      codigo_atual_informado: codigoAtual.trim(),
-      novo_codigo: codigoNovo.trim(),
-    });
-    if (error || !ok) {
-      setErro('Código atual incorreto, ou novo código inválido.');
-      return;
-    }
+    if (codigoNovo.trim().length < 6) { setErro('O novo código precisa ter pelo menos 6 caracteres.'); return; }
+    if (codigoNovo.trim() !== codigoNovo2.trim()) { setErro('Os dois campos de novo código não coincidem.'); return; }
+    const { data: ok, error } = await supabase.rpc('trocar_codigo_admin', { codigo_atual_informado: codigoAtual.trim(), novo_codigo: codigoNovo.trim() });
+    if (error || !ok) { setErro('Código atual incorreto, ou novo código inválido.'); return; }
     setToast('Código de administrador atualizado com sucesso.');
     setCodigoAtual(''); setCodigoNovo(''); setCodigoNovo2('');
     setMostrarTrocaCodigo(false);
@@ -209,17 +187,9 @@ export default function App() {
   async function handleEnviarLinkRecuperacao(e) {
     if (e?.preventDefault) e.preventDefault();
     setErro('');
-    if (!email.trim()) {
-      setErro('Informe o email do cadastro.');
-      return;
-    }
-    const { error } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
-      redirectTo: window.location.origin,
-    });
-    if (error) {
-      setErro('Não foi possível enviar o link: ' + error.message);
-      return;
-    }
+    if (!email.trim()) { setErro('Informe o email do cadastro.'); return; }
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), { redirectTo: window.location.origin });
+    if (error) { setErro('Não foi possível enviar o link: ' + error.message); return; }
     setToast('Link de redefinição enviado. Confira seu email.');
     setScreen('login');
   }
@@ -227,19 +197,10 @@ export default function App() {
   async function handleSalvarNovaSenhaRecuperacao(e) {
     if (e?.preventDefault) e.preventDefault();
     setErro('');
-    if (senha.length < 4) {
-      setErro('A nova senha precisa ter pelo menos 4 caracteres.');
-      return;
-    }
-    if (senha !== senha2) {
-      setErro('As senhas não coincidem.');
-      return;
-    }
+    if (senha.length < 4) { setErro('A nova senha precisa ter pelo menos 4 caracteres.'); return; }
+    if (senha !== senha2) { setErro('As senhas não coincidem.'); return; }
     const { error } = await supabase.auth.updateUser({ password: senha });
-    if (error) {
-      setErro('Não foi possível redefinir: ' + error.message);
-      return;
-    }
+    if (error) { setErro('Não foi possível redefinir: ' + error.message); return; }
     setToast('Senha redefinida com sucesso.');
     setSenha(''); setSenha2('');
     await supabase.auth.signOut();
@@ -249,32 +210,18 @@ export default function App() {
   async function handleExcluirFuncionario(e) {
     if (e?.preventDefault) e.preventDefault();
     setErro('');
-    if (!emailExcluir.trim()) {
-      setErro('Informe o email do funcionário.');
-      return;
-    }
-    if (confirmExcluir.trim().toUpperCase() !== 'EXCLUIR') {
-      setErro('Digite EXCLUIR no campo de confirmação.');
-      return;
-    }
-    const { data: ok, error } = await supabase.rpc('desativar_funcionario', {
-      email_alvo: emailExcluir.trim().toLowerCase(),
-    });
-    if (error || !ok) {
-      setErro('Não foi possível desativar (verifique o email, ou se você é administrador).');
-      return;
-    }
+    if (!emailExcluir.trim()) { setErro('Informe o email do funcionário.'); return; }
+    if (confirmExcluir.trim().toUpperCase() !== 'EXCLUIR') { setErro('Digite EXCLUIR no campo de confirmação.'); return; }
+    const { data: ok, error } = await supabase.rpc('desativar_funcionario', { email_alvo: emailExcluir.trim().toLowerCase() });
+    if (error || !ok) { setErro('Não foi possível desativar (verifique o email, ou se você é administrador).'); return; }
     setToast('Cadastro desativado. O funcionário não conseguirá mais entrar.');
     setEmailExcluir(''); setConfirmExcluir('');
-    setScreen('producao');
+    setScreen('menu');
   }
 
   async function loadRegistros() {
     setLoadingList(true);
-    const { data, error } = await supabase
-      .from('apontamentos')
-      .select('*')
-      .order('created_at', { ascending: false });
+    const { data, error } = await supabase.from('apontamentos').select('*').order('created_at', { ascending: false });
     setRegistros(error ? [] : data || []);
     setLoadingList(false);
   }
@@ -285,38 +232,23 @@ export default function App() {
       setErro('Preencha CD nome, nome do montador, serviço, modelo, cor, motor e chassi.');
       return;
     }
+    const statusInicial = form.tipoServico === 'Manutenção' ? 'manutencao' : 'pendente';
     const { error } = await supabase.from('apontamentos').insert({
-      cd_nome: form.cdNome,
-      nome_montador: form.nomeMontador,
-      tipo_servico: form.tipoServico,
-      modelo: form.modelo,
-      cor: form.cor,
-      motor: form.motor,
-      chassi: form.chassi,
-      hora_inicio: form.horaInicio || null,
-      hora_fim: form.horaFim || null,
-      anomalia: form.anomalia || null,
-      usuario_email: perfil?.email,
-      user_id: session?.user?.id,
+      cd_nome: form.cdNome, nome_montador: form.nomeMontador, tipo_servico: form.tipoServico,
+      modelo: form.modelo, cor: form.cor, motor: form.motor, chassi: form.chassi,
+      hora_inicio: form.horaInicio || null, hora_fim: form.horaFim || null, anomalia: form.anomalia || null,
+      usuario_email: perfil?.email, user_id: session?.user?.id, status: statusInicial,
     });
-    if (error) {
-      setErro('Não foi possível salvar: ' + error.message);
-      return;
-    }
-    setToast('Apontamento salvo.');
+    if (error) { setErro('Não foi possível salvar: ' + error.message); return; }
+    setToast(statusInicial === 'manutencao' ? 'Apontamento salvo. Enviado direto para Manutenção.' : 'Apontamento salvo.');
     setForm(empty);
   }
 
-  function handleNovo() {
-    setForm(empty);
-    setErro('');
-  }
+  function handleNovo() { setForm(empty); setErro(''); }
 
   async function handleSair() {
     await supabase.auth.signOut();
-    setPerfil(null);
-    setSession(null);
-    setForm(empty);
+    setPerfil(null); setSession(null); setForm(empty);
     setEmail(''); setSenha(''); setSenha2(''); setErro('');
     setScreen('login');
   }
@@ -325,30 +257,497 @@ export default function App() {
     const linhas = registros.map((r) => ({
       'Data': r.data ? new Date(r.data + 'T00:00:00').toLocaleDateString('pt-BR') : '',
       'Hora do registro': r.created_at ? new Date(r.created_at).toLocaleTimeString('pt-BR') : '',
-      'Usuário': r.usuario_email,
-      'CD nome': r.cd_nome,
-      'Nome montador': r.nome_montador,
-      'Serviço': r.tipo_servico,
-      'Hora início': r.hora_inicio,
-      'Hora fim': r.hora_fim,
-      'Modelo': r.modelo,
-      'Cor': r.cor,
-      'Motor': r.motor,
-      'Chassi': r.chassi,
-      'Anotações de anomalia': r.anomalia || '',
+      'Usuário': r.usuario_email, 'CD nome': r.cd_nome, 'Nome montador': r.nome_montador, 'Serviço': r.tipo_servico,
+      'Hora início': r.hora_inicio, 'Hora fim': r.hora_fim, 'Modelo': r.modelo, 'Cor': r.cor, 'Motor': r.motor, 'Chassi': r.chassi,
+      'Anotações de anomalia': r.anomalia || '', 'Status': r.status || 'pendente',
     }));
     const ws = XLSX.utils.json_to_sheet(linhas);
-    ws['!cols'] = [{ wch: 12 }, { wch: 12 }, { wch: 20 }, { wch: 12 }, { wch: 18 }, { wch: 14 }, { wch: 11 }, { wch: 11 }, { wch: 14 }, { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 30 }];
+    ws['!cols'] = [{ wch: 12 }, { wch: 12 }, { wch: 20 }, { wch: 12 }, { wch: 18 }, { wch: 14 }, { wch: 11 }, { wch: 11 }, { wch: 14 }, { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 30 }, { wch: 12 }];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Apontamentos');
     XLSX.writeFile(wb, `apontamentos_producao_${new Date().toISOString().slice(0, 10)}.xlsx`);
   }
 
-  const panelStyle = {
-    maxWidth: 380, margin: '0 auto', background: '#1F2933', borderRadius: 18,
-    padding: '28px 22px', color: '#EDEFF2', fontFamily: "'Inter', sans-serif",
-    boxShadow: '0 1px 0 rgba(255,255,255,0.04) inset',
-  };
+  function checklistCompleto(edicao) {
+    if (!edicao?.checklist) return false;
+    if (!edicao.checklist.numeroBateria || !edicao.checklist.numeroBateria.trim()) return false;
+    if (!edicao.inspetor || !edicao.inspetor.trim()) return false;
+    return CHECKLIST_ITENS.every((item) => edicao.checklist.respostas?.[item.chave]);
+  }
+
+  function handleAbrirChecklist(id) {
+    setErro('');
+    setEdicoesInspecao((prev) => ({ ...prev, [id]: { ...prev[id], checklist: prev[id]?.checklist || { numeroBateria: '', respostas: {} } } }));
+    setChecklistItemId(id);
+    setScreen('inspecaoChecklist');
+  }
+
+  function handleImprimirChecklist(item, edicao) {
+    const dataHoje = new Date().toLocaleDateString('pt-BR');
+    const naLabelPorCategoria = (cat) => (cat === '1 — Visual do Produto' ? 'N/A' : 'N/ Aplic.');
+    const categorias = [...new Set(CHECKLIST_ITENS.map((i) => i.categoria))];
+    const caixa = (marcada) => `<span class="caixa">${marcada ? 'X' : ''}</span>`;
+
+    const linhasHtml = categorias.map((cat) => {
+      const naLabel = naLabelPorCategoria(cat);
+      const linhaCategoria = `
+        <tr class="categoria-row">
+          <td colspan="2" class="categoria">${cat.replace(' — ', '- ')}</td>
+          <td class="subhead">Aprov.</td><td class="subhead">${naLabel}</td>
+          <td class="subhead">Aprov.</td><td class="subhead">Reprov.</td><td class="subhead">${naLabel}</td>
+          <td></td>
+        </tr>`;
+      const linhasItens = CHECKLIST_ITENS.filter((i) => i.categoria === cat).map((i) => `
+        <tr>
+          <td class="chave">${i.chave}</td>
+          <td class="descricao">${i.texto}</td>
+          <td class="col-caixa">${caixa(edicao.checklist.respostas[i.chave] === 'Aprov.')}</td>
+          <td class="col-caixa">${caixa(edicao.checklist.respostas[i.chave] === 'N/A')}</td>
+          <td class="col-caixa">${caixa(false)}</td>
+          <td class="col-caixa">${caixa(false)}</td>
+          <td class="col-caixa">${caixa(false)}</td>
+          <td></td>
+        </tr>`).join('');
+      return linhaCategoria + linhasItens;
+    }).join('');
+
+    const html = `<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8">
+<title>Check List de Liberação — ${item.chassi}</title>
+<style>
+  @page { size: portrait; margin: 14mm; }
+  * { box-sizing: border-box; }
+  body { font-family: 'Helvetica Neue', Arial, sans-serif; color: #1F2933; margin: 0; padding: 0; font-size: 10.5px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .documento { border: 1px solid #C7CDD3; border-radius: 8px; overflow: hidden; }
+  .topo { display: flex; align-items: center; gap: 14px; background: #1F2933; color: #fff; padding: 10px 18px; }
+  .topo img { width: 42px; height: 42px; border-radius: 50%; object-fit: cover; border: 2px solid #E8A33D; }
+  .topo-textos h1 { font-size: 15px; margin: 0; letter-spacing: 0.03em; }
+  table.cabecalho { width: 100%; border-collapse: collapse; }
+  table.cabecalho td { border: 1px solid #E1E4E8; border-top: none; padding: 6px 10px; font-size: 9px; vertical-align: top; background: #FAFBFC; }
+  table.cabecalho tr:first-child td { border-top: 1px solid #E1E4E8; }
+  table.cabecalho .rotulo { display: block; font-size: 8.5px; text-transform: uppercase; letter-spacing: 0.03em; color: #6B7A88; font-weight: bold; }
+  table.cabecalho .valor { display: block; color: #1F2933; font-weight: bold; margin-top: 3px; font-size: 11.5px; }
+  table.principal { width: 100%; border-collapse: collapse; }
+  table.principal th { background: #EDEFF2; color: #1F2933; border: 1px solid #C7CDD3; padding: 5px 4px; font-size: 8.5px; text-transform: uppercase; letter-spacing: 0.02em; text-align: center; }
+  table.principal td { border: 1px solid #E1E4E8; padding: 4px 8px; }
+  tr.categoria-row td { background: #E3EAF2; }
+  tr.categoria-row td.categoria { font-weight: bold; color: #1F3A5F; font-size: 10px; }
+  tr.categoria-row td.subhead { text-align: center; font-weight: bold; font-size: 8.5px; color: #1F3A5F; }
+  tbody tr:not(.categoria-row):nth-of-type(even) td { background: #F7F8FA; }
+  td.chave { width: 26px; text-align: center; color: #6B7A88; font-size: 9px; }
+  td.descricao { width: auto; }
+  td.col-caixa { width: 40px; text-align: center; }
+  .caixa { display: inline-block; width: 15px; height: 13px; border: 1.3px solid #4A5560; border-radius: 2px; text-align: center; line-height: 13px; font-weight: bold; color: #1F3A5F; font-size: 11px; }
+  .rodape-doc { display: flex; justify-content: space-between; align-items: flex-end; background: #FAFBFC; border-top: 1px solid #E1E4E8; padding: 8px 14px; font-size: 8.5px; color: #6B7A88; }
+  .rodape-doc strong { color: #1F2933; }
+  .assinaturas { display: grid; grid-template-columns: 1fr 1fr; gap: 60px; margin: 70px 20px 10px; }
+  .assinaturas div { border-top: 1px solid #1F2933; padding-top: 6px; text-align: center; font-size: 9.5px; color: #4A5560; }
+  .assinaturas .cargo { display: block; font-size: 8px; text-transform: uppercase; letter-spacing: 0.03em; color: #8A8578; margin-top: 2px; }
+  .rodape-acao { margin: 20px 0; text-align: center; }
+  .rodape-acao button { background: #D97B2A; color: #fff; border: none; border-radius: 6px; padding: 8px 18px; font-size: 12px; cursor: pointer; }
+  @media print { .rodape-acao { display: none; } }
+</style></head>
+<body>
+  <div class="documento">
+    <div class="topo">
+      <img src="${LOGO_SRC}" alt="Logo Hao Moto Electric Motors" />
+      <div class="topo-textos"><h1>CHECK-LIST DE LIBERAÇÃO DE PRODUTO</h1></div>
+    </div>
+    <table class="cabecalho">
+      <tr>
+        <td style="width:26%"><span class="rotulo">Descrição do Produto</span><span class="valor">${item.modelo}</span></td>
+        <td style="width:16%"><span class="rotulo">Cor</span><span class="valor">${item.cor}</span></td>
+        <td style="width:20%"><span class="rotulo">Nº Chassi</span><span class="valor">${item.chassi}</span></td>
+        <td style="width:19%"><span class="rotulo">Nº Motor</span><span class="valor">${item.motor}</span></td>
+        <td style="width:19%"><span class="rotulo">Nº Bateria</span><span class="valor">${edicao.checklist.numeroBateria}</span></td>
+      </tr>
+      <tr>
+        <td colspan="2"><span class="rotulo">Montador (CD)</span><span class="valor">${item.nome_montador}</span></td>
+        <td colspan="2"><span class="rotulo">Inspetor da Qualidade (CD)</span><span class="valor">${edicao.inspetor}</span></td>
+        <td><span class="rotulo">Data Inspeção</span><span class="valor">${dataHoje}</span></td>
+      </tr>
+    </table>
+    <table class="principal">
+      <thead>
+        <tr>
+          <th colspan="2">Lista de checagem</th>
+          <th colspan="2">Status na saída (CD)</th>
+          <th colspan="3">Status recebimento (loja)</th>
+          <th>Observações</th>
+        </tr>
+      </thead>
+      <tbody>${linhasHtml}</tbody>
+    </table>
+    <div class="rodape-doc">
+      <span><strong>Gestão da Qualidade</strong></span>
+      <span style="text-align:right;">Página 1 de 1 &nbsp;·&nbsp; Revisão: 01 &nbsp;·&nbsp; Data: ${dataHoje}</span>
+    </div>
+  </div>
+  <div class="assinaturas">
+    <div>Assinatura<span class="cargo">Inspetor CD</span></div>
+    <div>Assinatura<span class="cargo">Recebedor Responsável Loja</span></div>
+  </div>
+  <div class="rodape-acao"><button onclick="window.print()">Imprimir / Salvar como PDF</button></div>
+</body></html>`;
+
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `checklist_${item.chassi}.html`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  async function loadInspecao() {
+    setLoadingInspecao(true);
+    const { data, error } = await supabase.from('apontamentos').select('*').eq('status', 'pendente').order('created_at', { ascending: false });
+    const items = error ? [] : (data || []);
+    setInspecaoRegistros(items);
+    const iniciais = {};
+    items.forEach((r) => {
+      iniciais[r.id] = { anomalia: r.anomalia || '', statusEscolhido: '', inspetor: r.inspetor_qualidade || '', checklist: r.checklist || { numeroBateria: '', respostas: {} } };
+    });
+    setEdicoesInspecao(iniciais);
+    setLoadingInspecao(false);
+  }
+
+  async function handleSalvarInspecaoItem(id) {
+    setErro('');
+    const edicao = edicoesInspecao[id];
+    if (!edicao || !edicao.statusEscolhido) { setErro('Selecione Aprovado ou Manutenção antes de salvar.'); return; }
+    if (!edicao.inspetor || !edicao.inspetor.trim()) { setErro('Informe o nome do Inspetor da Qualidade (CD) antes de salvar.'); return; }
+    const { error } = await supabase.from('apontamentos').update({
+      anomalia: edicao.anomalia, status: edicao.statusEscolhido, inspetor_qualidade: edicao.inspetor, checklist: edicao.checklist || null,
+    }).eq('id', id);
+    if (error) { setErro('Não foi possível salvar: ' + error.message); return; }
+    setInspecaoRegistros((prev) => prev.filter((r) => r.id !== id));
+    setToast(edicao.statusEscolhido === 'aprovado' ? 'Enviado para Expedição.' : 'Enviado para Manutenção.');
+  }
+
+  async function loadManutencao() {
+    setLoadingManutencao(true);
+    const { data, error } = await supabase.from('apontamentos').select('*').eq('status', 'manutencao').order('created_at', { ascending: false });
+    const items = error ? [] : (data || []);
+    setManutencaoRegistros(items);
+    const iniciais = {};
+    items.forEach((r) => { iniciais[r.id] = { anomalia: r.anomalia || '' }; });
+    setEdicoesManutencao(iniciais);
+    setLoadingManutencao(false);
+  }
+
+  async function handleEnviarInspecao(id) {
+    setErro('');
+    const { data: atual, error: erroSelect } = await supabase.from('apontamentos').select('historico_manutencao').eq('id', id).single();
+    if (erroSelect || !atual) { setErro('Registro não encontrado.'); return; }
+    const anomaliaAtualizada = edicoesManutencao[id]?.anomalia ?? '';
+    const agora = new Date();
+    const novoHistorico = [...(atual.historico_manutencao || []), { data: agora.toISOString().slice(0, 10), dataHora: agora.toISOString(), anomalia: anomaliaAtualizada, usuarioEmail: perfil?.email || '' }];
+    const { error } = await supabase.from('apontamentos').update({ anomalia: anomaliaAtualizada, status: 'pendente', historico_manutencao: novoHistorico }).eq('id', id);
+    if (error) { setErro('Não foi possível salvar: ' + error.message); return; }
+    setManutencaoRegistros((prev) => prev.filter((r) => r.id !== id));
+    setToast('Enviado de volta para Inspeção.');
+  }
+
+  async function handleRelatorioDiarioManutencao() {
+    setErro('');
+    const hoje = new Date().toISOString().slice(0, 10);
+    const { data, error } = await supabase.from('apontamentos').select('*');
+    if (error) { setErro('Não foi possível gerar o relatório: ' + error.message); return; }
+    const linhas = [];
+    (data || []).forEach((registro) => {
+      (registro.historico_manutencao || []).filter((h) => h.data === hoje).forEach((h) => {
+        linhas.push({
+          'Hora': new Date(h.dataHora).toLocaleTimeString('pt-BR'), 'CD nome': registro.cd_nome, 'Modelo': registro.modelo, 'Cor': registro.cor,
+          'Motor': registro.motor, 'Chassi': registro.chassi, 'Descrição do conserto': h.anomalia || '', 'Responsável': h.usuarioEmail || '',
+        });
+      });
+    });
+    if (linhas.length === 0) { setToast('Nenhuma manutenção concluída hoje ainda.'); return; }
+    const ws = XLSX.utils.json_to_sheet(linhas);
+    ws['!cols'] = [{ wch: 10 }, { wch: 12 }, { wch: 18 }, { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 34 }, { wch: 22 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Manutenções do dia');
+    XLSX.writeFile(wb, `manutencoes_dia_${hoje}.xlsx`);
+    setToast(`Relatório baixado: ${linhas.length} manutenção(ões) hoje.`);
+  }
+
+  async function loadExpedicao() {
+    setLoadingExpedicao(true);
+    const { data, error } = await supabase.from('apontamentos').select('*').eq('status', 'aprovado').order('created_at', { ascending: false });
+    const items = error ? [] : (data || []);
+    setExpedicaoRegistros(items);
+    const iniciais = {};
+    items.forEach((r) => { iniciais[r.id] = 'aberto'; });
+    setStatusPorItemExpedicao(iniciais);
+    setLoadingExpedicao(false);
+  }
+
+  async function handleGerarRomaneioClick() {
+    setErro('');
+    const selecionados = expedicaoRegistros.filter((r) => statusPorItemExpedicao[r.id] === 'expedido');
+    if (selecionados.length === 0) { setErro('Marque pelo menos um equipamento como "Expedido" antes de clicar em Gerar Romaneio.'); return; }
+    const { data: numero, error } = await supabase.rpc('gerar_numero_ordem');
+    if (error || !numero) { setErro('Não foi possível gerar o número da ordem: ' + (error?.message || '')); return; }
+    setNumeroOrdemAtual(numero);
+    setItensParaEnvio(selecionados);
+    setFormExpedicao({ data: new Date().toISOString().slice(0, 10), motorista: '', cpf: '', placa: '', chavePix: '', cliente: '', endereco: '', destino: '' });
+    setScreen('expedicaoFormulario');
+  }
+
+  function baixarRomaneioHtml(opts) {
+    const numero = opts?.numero || numeroOrdemAtual;
+    const statusPedido = opts?.statusPedido || 'pendente';
+    const itens = opts?.itens || itensParaEnvio;
+    const dadosForm = opts?.dadosForm || formExpedicao;
+    const notaFiscalDoc = opts?.notaFiscal || '';
+    const { data, motorista, cpf, placa, chavePix, cliente, endereco, destino } = dadosForm;
+    const dataFormatada = data ? new Date(data + 'T00:00:00').toLocaleDateString('pt-BR') : '';
+    const linhasTabela = itens.map((r, i) => `
+      <tr style="${i % 2 === 1 ? 'background:#F7F5F2;' : ''}">
+        <td>${r.modelo}</td><td>${r.cor}</td><td>${r.motor}</td><td>${r.chassi}</td>
+      </tr>`).join('');
+    const campo = (rotulo, valor) => `<div class="campo"><span class="rotulo">${rotulo}</span><span class="valor">${valor || '—'}</span></div>`;
+    const avisoPendente = statusPedido === 'pendente'
+      ? `<div class="aviso-pendente">PEDIDO PENDENTE DE APROVAÇÃO — não gera baixa no estoque</div>`
+      : `<div class="aviso-aprovado">PEDIDO APROVADO — baixa no estoque confirmada${notaFiscalDoc ? ` — NF ${notaFiscalDoc}` : ''}</div>`;
+
+    const html = `<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8">
+<title>Romaneio de Entrega ${numero}</title>
+<style>
+  @page { size: portrait; margin: 18mm; }
+  * { box-sizing: border-box; }
+  body { font-family: 'Georgia', serif; color: #1F2933; margin: 0; padding: 36px; background: #fff; }
+  .cabecalho { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-bottom: 18px; border-bottom: 3px solid #1F2933; margin-bottom: 16px; }
+  .cabecalho-esquerda { display: flex; align-items: center; gap: 16px; }
+  .cabecalho img { width: 58px; height: 58px; border-radius: 50%; object-fit: cover; }
+  .cabecalho h1 { font-size: 22px; margin: 0; letter-spacing: 0.03em; }
+  .numero-ordem { font-family: Arial, sans-serif; font-size: 13px; font-weight: bold; color: #B9762D; text-align: right; }
+  .aviso-pendente { font-family: Arial, sans-serif; font-size: 11px; font-weight: bold; letter-spacing: 0.04em; text-transform: uppercase; color: #A15C1E; background: #FBEBD8; border: 1px solid #E8A33D; border-radius: 6px; padding: 8px 12px; margin-bottom: 16px; text-align: center; }
+  .aviso-aprovado { font-family: Arial, sans-serif; font-size: 11px; font-weight: bold; letter-spacing: 0.04em; text-transform: uppercase; color: #2F5D3A; background: #E6F2E8; border: 1px solid #4C8C5C; border-radius: 6px; padding: 8px 12px; margin-bottom: 16px; text-align: center; }
+  .secao-titulo { font-family: Arial, sans-serif; font-size: 11px; font-weight: bold; letter-spacing: 0.08em; text-transform: uppercase; color: #B9762D; margin: 22px 0 8px; }
+  .grade-campos { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid #D8D3CB; border-radius: 6px; overflow: hidden; }
+  .campo { padding: 10px 14px; border-right: 1px solid #D8D3CB; border-bottom: 1px solid #D8D3CB; }
+  .campo:nth-child(3n) { border-right: none; }
+  .rotulo { display: block; font-family: Arial, sans-serif; font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; color: #8A8578; margin-bottom: 3px; }
+  .valor { display: block; font-size: 14px; font-weight: bold; word-break: break-word; }
+  table { width: 100%; border-collapse: collapse; margin-top: 6px; font-family: Arial, sans-serif; font-size: 13px; }
+  th { background: #1F2933; color: #fff; padding: 8px 10px; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; }
+  td { padding: 8px 10px; border-bottom: 1px solid #E4E0D8; }
+  .assinaturas { display: grid; grid-template-columns: 1fr 1fr; gap: 60px; margin-top: 130px; font-family: Arial, sans-serif; }
+  .assinaturas div { border-top: 1px solid #1F2933; padding-top: 8px; text-align: center; font-size: 12px; color: #4A5560; }
+  .rodape-acao { margin-top: 30px; text-align: center; }
+  .rodape-acao button { background: #D97B2A; color: #fff; border: none; border-radius: 6px; padding: 10px 20px; font-family: Arial, sans-serif; font-size: 13px; cursor: pointer; }
+  @media print { .rodape-acao { display: none; } }
+</style></head>
+<body>
+  <div class="cabecalho">
+    <div class="cabecalho-esquerda">
+      <img src="${LOGO_SRC}" alt="Logo Hao Moto Electric Motors" />
+      <div><h1>Romaneio de Entrega</h1></div>
+    </div>
+    <div class="numero-ordem">Ordem de entrega<br>${numero}</div>
+  </div>
+  ${avisoPendente}
+  <p class="secao-titulo">Dados da remessa</p>
+  <div class="grade-campos">
+    ${campo('Data', dataFormatada)}
+    ${campo('Placa do caminhão', placa)}
+    ${campo('CPF do motorista', cpf)}
+    ${campo('Motorista', motorista)}
+    ${campo('Chave Pix', chavePix)}
+    ${campo('Cliente', cliente)}
+    ${campo('Endereço', endereco)}
+    ${campo('Destino', destino)}
+    ${notaFiscalDoc ? campo('Nota Fiscal', notaFiscalDoc) : ''}
+  </div>
+  <p class="secao-titulo">Equipamentos</p>
+  <table>
+    <thead><tr><th>Modelo</th><th>Cor</th><th>Motor</th><th>Chassi</th></tr></thead>
+    <tbody>${linhasTabela}</tbody>
+  </table>
+  <div class="assinaturas">
+    <div>Assinatura do Expedidor</div>
+    <div>Assinatura do Motorista</div>
+  </div>
+  <div class="rodape-acao"><button onclick="window.print()">Imprimir / Salvar como PDF</button></div>
+</body></html>`;
+
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `romaneio_${numero}.html`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  async function handleSalvarPedidoNovo() {
+    setErro('');
+    const { data, motorista, cpf, placa, chavePix, cliente, endereco, destino } = formExpedicao;
+    if (!data || !motorista.trim() || !cpf.trim() || !placa.trim() || !chavePix.trim() || !cliente.trim() || !endereco.trim() || !destino.trim()) {
+      setErro('Preencha todos os campos antes de salvar.');
+      return;
+    }
+    const cdNomes = [...new Set(itensParaEnvio.map((i) => i.cd_nome).filter(Boolean))].join(', ');
+    const { error: erroInsert } = await supabase.from('pedidos').insert({
+      numero: numeroOrdemAtual, status: 'pendente', itens_ids: itensParaEnvio.map((i) => i.id), cd_nomes: cdNomes,
+      data, motorista, cpf, placa, chave_pix: chavePix, cliente, endereco, destino, user_id: session?.user?.id,
+    });
+    if (erroInsert) { setErro('Não foi possível salvar o pedido: ' + erroInsert.message); return; }
+
+    for (const item of itensParaEnvio) {
+      await supabase.from('apontamentos').update({ status: 'reservado_expedicao', pedido_numero: numeroOrdemAtual }).eq('id', item.id);
+    }
+    const idsEnviados = itensParaEnvio.map((i) => i.id);
+    setExpedicaoRegistros((prev) => prev.filter((r) => !idsEnviados.includes(r.id)));
+    setToast(`Pedido ${numeroOrdemAtual} salvo. Use "Revisar" para gerar o PDF ou aprovar depois.`);
+    setScreen('expedicaoMenu');
+  }
+
+  async function loadPedidosPendentes() {
+    setLoadingBusca(true);
+    const { data, error } = await supabase.from('pedidos').select('*').eq('status', 'pendente').order('criado_em', { ascending: false });
+    setPedidosPendentes(error ? [] : (data || []));
+    setLoadingBusca(false);
+  }
+
+  async function carregarItensDoPedido(pedido) {
+    if (!pedido.itens_ids || pedido.itens_ids.length === 0) return [];
+    const { data, error } = await supabase.from('apontamentos').select('*').in('id', pedido.itens_ids);
+    return error ? [] : (data || []);
+  }
+
+  async function handleGerarPdfPedido(pedido) {
+    setErro('');
+    const itens = await carregarItensDoPedido(pedido);
+    baixarRomaneioHtml({
+      numero: pedido.numero, statusPedido: 'pendente', itens,
+      dadosForm: { data: pedido.data, motorista: pedido.motorista, cpf: pedido.cpf, placa: pedido.placa, chavePix: pedido.chave_pix, cliente: pedido.cliente, endereco: pedido.endereco, destino: pedido.destino },
+    });
+    setToast(`PDF do pedido ${pedido.numero} baixado.`);
+  }
+
+  async function handleAlterarPedido(pedido) {
+    setErro('');
+    setPedidoCarregado(pedido);
+    setFormExpedicao({ data: pedido.data, motorista: pedido.motorista, cpf: pedido.cpf, placa: pedido.placa, chavePix: pedido.chave_pix, cliente: pedido.cliente, endereco: pedido.endereco, destino: pedido.destino });
+    setItensDoPedido(await carregarItensDoPedido(pedido));
+    const { data: disponiveis } = await supabase.from('apontamentos').select('*').eq('status', 'aprovado');
+    setItensDisponiveisRevisao(disponiveis || []);
+    setScreen('expedicaoRevisarItens');
+  }
+
+  async function handleRemoverItemRevisao(id) {
+    setErro('');
+    await supabase.from('apontamentos').update({ status: 'aprovado', pedido_numero: null }).eq('id', id);
+    const novosIds = pedidoCarregado.itens_ids.filter((i) => i !== id);
+    await supabase.from('pedidos').update({ itens_ids: novosIds }).eq('numero', pedidoCarregado.numero);
+    setPedidoCarregado({ ...pedidoCarregado, itens_ids: novosIds });
+    const itemRemovido = itensDoPedido.find((r) => r.id === id);
+    setItensDoPedido((prev) => prev.filter((r) => r.id !== id));
+    if (itemRemovido) setItensDisponiveisRevisao((prev) => [...prev, itemRemovido]);
+    setToast('Equipamento removido do pedido.');
+  }
+
+  async function handleAdicionarItemRevisao(id) {
+    setErro('');
+    const registro = itensDisponiveisRevisao.find((r) => r.id === id);
+    await supabase.from('apontamentos').update({ status: 'reservado_expedicao', pedido_numero: pedidoCarregado.numero }).eq('id', id);
+    const novosIds = [...pedidoCarregado.itens_ids, id];
+    await supabase.from('pedidos').update({ itens_ids: novosIds }).eq('numero', pedidoCarregado.numero);
+    setPedidoCarregado({ ...pedidoCarregado, itens_ids: novosIds });
+    setItensDoPedido((prev) => [...prev, registro]);
+    setItensDisponiveisRevisao((prev) => prev.filter((r) => r.id !== id));
+    setToast('Equipamento incluído no pedido.');
+  }
+
+  async function handleSalvarRevisao() {
+    setErro('');
+    const { data, motorista, cpf, placa, chavePix, cliente, endereco, destino } = formExpedicao;
+    if (!data || !motorista.trim() || !cpf.trim() || !placa.trim() || !chavePix.trim() || !cliente.trim() || !endereco.trim() || !destino.trim()) {
+      setErro('Preencha todos os campos antes de salvar.');
+      return;
+    }
+    if (itensDoPedido.length === 0) { setErro('O pedido precisa ter pelo menos um equipamento antes de salvar.'); return; }
+    const cdNomes = [...new Set(itensDoPedido.map((i) => i.cd_nome).filter(Boolean))].join(', ');
+    const { error } = await supabase.from('pedidos').update({ data, motorista, cpf, placa, chave_pix: chavePix, cliente, endereco, destino, cd_nomes: cdNomes }).eq('numero', pedidoCarregado.numero);
+    if (error) { setErro('Não foi possível salvar as alterações: ' + error.message); return; }
+    setToast(`Pedido ${pedidoCarregado.numero} atualizado. Pronto para aprovar.`);
+    setPedidoCarregado({ ...pedidoCarregado, data, motorista, cpf, placa, chave_pix: chavePix, cliente, endereco, destino, cd_nomes: cdNomes });
+    setNotaFiscal('');
+    setScreen('expedicaoAprovarNotaFiscal');
+  }
+
+  async function handleAbrirAprovarNotaFiscal(pedido) {
+    setErro('');
+    setPedidoCarregado(pedido);
+    setFormExpedicao({ data: pedido.data, motorista: pedido.motorista, cpf: pedido.cpf, placa: pedido.placa, chavePix: pedido.chave_pix, cliente: pedido.cliente, endereco: pedido.endereco, destino: pedido.destino });
+    setItensDoPedido(await carregarItensDoPedido(pedido));
+    setNotaFiscal('');
+    setScreen('expedicaoAprovarNotaFiscal');
+  }
+
+  async function handleSalvarAprovacaoComNotaFiscal() {
+    setErro('');
+    if (!notaFiscal.trim()) { setErro('Informe o número da nota fiscal.'); return; }
+    if (!pedidoCarregado) return;
+    const agora = new Date().toISOString();
+    const expedicaoInfo = { ...formExpedicao, notaFiscal: notaFiscal.trim(), dataHoraExpedicao: agora, numeroOrdem: pedidoCarregado.numero };
+    for (const item of itensDoPedido) {
+      await supabase.from('apontamentos').update({ status: 'expedido', expedicao_info: expedicaoInfo }).eq('id', item.id);
+    }
+    await supabase.from('pedidos').update({ status: 'aprovado', aprovado_em: agora, nota_fiscal: notaFiscal.trim() }).eq('numero', pedidoCarregado.numero);
+
+    baixarRomaneioHtml({ numero: pedidoCarregado.numero, statusPedido: 'aprovado', itens: itensDoPedido, dadosForm: formExpedicao, notaFiscal: notaFiscal.trim() });
+
+    const linhasExpedido = itensDoPedido.map((r) => ({
+      'CD nome': r.cd_nome, 'Modelo': r.modelo, 'Cor': r.cor, 'Motor': r.motor, 'Chassi': r.chassi, 'Status': 'EXPEDIDO',
+      'Ordem': pedidoCarregado.numero, 'Nota fiscal': notaFiscal.trim(), 'Data': formExpedicao.data, 'Motorista': formExpedicao.motorista,
+      'CPF': formExpedicao.cpf, 'Placa': formExpedicao.placa, 'Chave Pix': formExpedicao.chavePix, 'Cliente': formExpedicao.cliente,
+      'Endereço': formExpedicao.endereco, 'Destino': formExpedicao.destino,
+    }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(linhasExpedido), 'Expedido');
+    XLSX.writeFile(wb, `controle_expedicao_${pedidoCarregado.numero}.xlsx`);
+
+    setToast(`Pedido ${pedidoCarregado.numero} aprovado. Baixa no estoque confirmada.`);
+    setScreen('expedicaoPedidosList');
+    loadPedidosPendentes();
+  }
+
+  async function handleBackupCompleto() {
+    setErro('');
+    const { data: apontamentos, error: erroA } = await supabase.from('apontamentos').select('*');
+    if (erroA) { setErro('Não foi possível gerar o backup: ' + erroA.message); return; }
+    const { data: perfis, error: erroP } = await supabase.from('profiles').select('email, role, funcao');
+    if (erroP) { setErro('Não foi possível gerar o backup: ' + erroP.message); return; }
+    const linhasApontamentos = (apontamentos || []).map((reg) => ({
+      'Data': reg.data || '', 'Hora do registro': reg.created_at ? new Date(reg.created_at).toLocaleTimeString('pt-BR') : '',
+      'Usuário': reg.usuario_email || '', 'CD nome': reg.cd_nome || '', 'Nome montador': reg.nome_montador || '', 'Serviço': reg.tipo_servico || '',
+      'Modelo': reg.modelo || '', 'Cor': reg.cor || '', 'Motor': reg.motor || '', 'Chassi': reg.chassi || '',
+      'Hora início': reg.hora_inicio || '', 'Hora fim': reg.hora_fim || '', 'Anotações/anomalia': reg.anomalia || '', 'Status': reg.status || 'pendente',
+      'Inspetor qualidade': reg.inspetor_qualidade || '', 'Pedido': reg.pedido_numero || '',
+      'Qtd. manutenções sofridas': (reg.historico_manutencao || []).length,
+      'Cliente (se expedido)': reg.expedicao_info?.cliente || '', 'Destino (se expedido)': reg.expedicao_info?.destino || '', 'Data expedição': reg.expedicao_info?.data || '',
+    }));
+    const linhasUsuarios = (perfis || []).map((u) => ({ 'Email': u.email, 'Função': u.funcao || '', 'Papel': u.role || 'funcionario' }));
+    const wb = XLSX.utils.book_new();
+    const wsA = XLSX.utils.json_to_sheet(linhasApontamentos);
+    XLSX.utils.book_append_sheet(wb, wsA, 'Apontamentos (tudo)');
+    const wsU = XLSX.utils.json_to_sheet(linhasUsuarios);
+    XLSX.utils.book_append_sheet(wb, wsU, 'Funcionários');
+    const agora = new Date().toISOString().replace('T', '_').slice(0, 19).replace(/:/g, '-');
+    XLSX.writeFile(wb, `backup_completo_${agora}.xlsx`);
+    setToast(`Backup baixado: ${linhasApontamentos.length} apontamentos, ${linhasUsuarios.length} funcionários.`);
+  }
+
+  const panelStyle = { maxWidth: 380, margin: '0 auto', background: '#1F2933', borderRadius: 18, padding: '28px 22px', color: '#EDEFF2', fontFamily: "'Inter', sans-serif", boxShadow: '0 1px 0 rgba(255,255,255,0.04) inset' };
   const label = { fontSize: 12, letterSpacing: '0.03em', color: '#8FA3B8', display: 'block', marginBottom: 4, marginTop: 12, textTransform: 'uppercase' };
   const input = { width: '100%', background: '#2A3542', border: '1px solid #3A4756', borderRadius: 8, padding: '10px 12px', color: '#EDEFF2', fontFamily: "'Inter', sans-serif", fontSize: 14 };
   const mono = { ...input, fontFamily: "'JetBrains Mono', monospace" };
@@ -359,18 +758,9 @@ export default function App() {
   return (
     <div style={{ padding: '2rem 1rem', minHeight: '100vh', background: '#12181F' }}>
       <style>{FONT_IMPORT}{LIVE_CSS}</style>
+      {toast && <div style={{ maxWidth: 380, margin: '0 auto 12px', background: '#2F4D3A', color: '#CFEFDB', padding: '10px 14px', borderRadius: 8, fontSize: 13, fontFamily: "'Inter', sans-serif" }}>{toast}</div>}
 
-      {toast && (
-        <div style={{ maxWidth: 380, margin: '0 auto 12px', background: '#2F4D3A', color: '#CFEFDB', padding: '10px 14px', borderRadius: 8, fontSize: 13, fontFamily: "'Inter', sans-serif" }}>
-          {toast}
-        </div>
-      )}
-
-      {screen === 'carregando' && (
-        <div style={{ ...panelStyle, textAlign: 'center' }}>
-          <p style={{ color: '#8FA3B8', fontSize: 13 }}>Carregando...</p>
-        </div>
-      )}
+      {screen === 'carregando' && <div style={{ ...panelStyle, textAlign: 'center' }}><p style={{ color: '#8FA3B8', fontSize: 13 }}>Carregando...</p></div>}
 
       {screen === 'login' && (
         <div style={panelStyle} className="screen-enter">
@@ -387,7 +777,7 @@ export default function App() {
             {erro && <p style={{ color: '#E8927A', fontSize: 12, marginTop: 10 }}>{erro}</p>}
             <button type="button" onClick={handleLogin} style={primaryBtn} className="btn-live">Entrar</button>
           </div>
-          <button style={ghostBtn} className="btn-live ghost-live" onClick={() => { setErro(''); setEmail(''); setSenha(''); setSenha2(''); setScreen('cadastro'); }}>Criar novo cadastro</button>
+          <button style={ghostBtn} className="btn-live ghost-live" onClick={() => { setErro(''); setEmail(''); setSenha(''); setSenha2(''); setFuncao(''); setScreen('cadastro'); }}>Criar novo cadastro</button>
           <button style={{ ...ghostBtn, marginTop: 4, fontSize: 12, color: '#8FA3B8' }} className="btn-live ghost-live" onClick={() => { setErro(''); setEmail(''); setSenha(''); setSenha2(''); setCodigoAdmin(''); setScreen('cadastroAdmin'); }}>Cadastro de administrador</button>
           <button style={{ ...ghostBtn, marginTop: 4, fontSize: 12, color: '#8FA3B8' }} className="btn-live ghost-live" onClick={() => { setErro(''); setEmail(''); setScreen('redefinirSenha'); }}>Esqueci minha senha</button>
         </div>
@@ -396,20 +786,24 @@ export default function App() {
       {screen === 'cadastro' && (
         <div style={panelStyle} className="screen-enter">
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-            <button aria-label="Voltar" onClick={() => { setErro(''); setScreen('login'); }} style={{ background: 'none', border: 'none', color: '#EDEFF2', cursor: 'pointer' }}>
-              <i className="ti ti-arrow-left" style={{ fontSize: 20 }} aria-hidden="true"></i>
-            </button>
+            <button aria-label="Voltar" onClick={() => { setErro(''); setScreen('login'); }} style={{ background: 'none', border: 'none', color: '#EDEFF2', cursor: 'pointer' }}><i className="ti ti-arrow-left" style={{ fontSize: 20 }} aria-hidden="true"></i></button>
+            <img src={LOGO_SRC} alt="Logo Hao Moto Electric Motors" style={{ width: 26, height: 26, borderRadius: '50%', objectFit: 'cover' }} />
             <h1 style={h1}>Novo cadastro</h1>
           </div>
           <div>
             <label style={label}>Email (único)</label>
             <input style={input} className="field-live" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="nome@empresa.com" />
+            <label style={label}>Função</label>
+            <input style={input} className="field-live" value={funcao} onChange={(e) => setFuncao(e.target.value)} placeholder="Ex: Montador, Inspetor, Auxiliar..." />
             <label style={label}>Senha</label>
             <input style={input} className="field-live" type="password" value={senha} onChange={(e) => setSenha(e.target.value)} placeholder="mínimo 4 caracteres" />
             <label style={label}>Confirmar senha</label>
             <input style={input} className="field-live" type="password" value={senha2} onChange={(e) => setSenha2(e.target.value)} placeholder="••••••••" onKeyDown={(e) => { if (e.key === 'Enter') handleCadastro(e); }} />
             {erro && <p style={{ color: '#E8927A', fontSize: 12, marginTop: 10 }}>{erro}</p>}
-            <button type="button" onClick={handleCadastro} style={primaryBtn} className="btn-live">Cadastrar</button>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 20 }}>
+              <button type="button" onClick={handleCadastro} style={{ ...primaryBtn, marginTop: 0 }} className="btn-live">Cadastrar</button>
+              <button type="button" onClick={() => { setErro(''); setScreen('login'); }} style={{ ...ghostBtn, marginTop: 0 }} className="btn-live ghost-live">Voltar</button>
+            </div>
           </div>
         </div>
       )}
@@ -417,9 +811,8 @@ export default function App() {
       {screen === 'redefinirSenha' && (
         <div style={panelStyle} className="screen-enter">
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-            <button aria-label="Voltar" onClick={() => { setErro(''); setScreen('login'); }} style={{ background: 'none', border: 'none', color: '#EDEFF2', cursor: 'pointer' }}>
-              <i className="ti ti-arrow-left" style={{ fontSize: 20 }} aria-hidden="true"></i>
-            </button>
+            <button aria-label="Voltar" onClick={() => { setErro(''); setScreen('login'); }} style={{ background: 'none', border: 'none', color: '#EDEFF2', cursor: 'pointer' }}><i className="ti ti-arrow-left" style={{ fontSize: 20 }} aria-hidden="true"></i></button>
+            <img src={LOGO_SRC} alt="Logo Hao Moto Electric Motors" style={{ width: 26, height: 26, borderRadius: '50%', objectFit: 'cover' }} />
             <h1 style={h1}>Redefinir senha</h1>
           </div>
           <p style={{ color: '#8FA3B8', fontSize: 12, marginBottom: 4 }}>Informe seu email — vamos te mandar um link seguro por email para criar uma nova senha.</p>
@@ -429,15 +822,13 @@ export default function App() {
             {erro && <p style={{ color: '#E8927A', fontSize: 12, marginTop: 10 }}>{erro}</p>}
             <button type="button" onClick={handleEnviarLinkRecuperacao} style={primaryBtn} className="btn-live">Enviar link de redefinição</button>
           </div>
-          <button type="button" onClick={() => { setErro(''); setScreen('login'); }} style={{ ...ghostBtn, marginTop: 16 }} className="btn-live ghost-live">Voltar ao menu anterior</button>
+          <button type="button" onClick={() => { setErro(''); setScreen('login'); }} style={{ ...ghostBtn, marginTop: 16 }} className="btn-live ghost-live">Voltar ao login</button>
         </div>
       )}
 
       {screen === 'novaSenhaRecuperacao' && (
         <div style={panelStyle} className="screen-enter">
-          <div style={{ marginBottom: 16 }}>
-            <h1 style={h1}>Definir nova senha</h1>
-          </div>
+          <div style={{ marginBottom: 16 }}><h1 style={h1}>Definir nova senha</h1></div>
           <div>
             <label style={label}>Nova senha</label>
             <input style={input} className="field-live" type="password" value={senha} onChange={(e) => setSenha(e.target.value)} placeholder="mínimo 4 caracteres" />
@@ -452,9 +843,8 @@ export default function App() {
       {screen === 'cadastroAdmin' && (
         <div style={panelStyle} className="screen-enter">
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-            <button aria-label="Voltar" onClick={() => { setErro(''); setScreen('login'); }} style={{ background: 'none', border: 'none', color: '#EDEFF2', cursor: 'pointer' }}>
-              <i className="ti ti-arrow-left" style={{ fontSize: 20 }} aria-hidden="true"></i>
-            </button>
+            <button aria-label="Voltar" onClick={() => { setErro(''); setScreen('login'); }} style={{ background: 'none', border: 'none', color: '#EDEFF2', cursor: 'pointer' }}><i className="ti ti-arrow-left" style={{ fontSize: 20 }} aria-hidden="true"></i></button>
+            <img src={LOGO_SRC} alt="Logo Hao Moto Electric Motors" style={{ width: 26, height: 26, borderRadius: '50%', objectFit: 'cover' }} />
             <h1 style={h1}>Cadastro de administrador</h1>
           </div>
           <p style={{ color: '#8FA3B8', fontSize: 12, marginBottom: 4 }}>Exige o código de administrador da empresa.</p>
@@ -470,17 +860,10 @@ export default function App() {
             {erro && <p style={{ color: '#E8927A', fontSize: 12, marginTop: 10 }}>{erro}</p>}
             <button type="button" onClick={handleCadastroAdmin} style={primaryBtn} className="btn-live">Cadastrar administrador</button>
           </div>
-
           <div style={{ borderTop: '1px solid #3A4756', marginTop: 20, paddingTop: 14 }}>
-            <button
-              type="button"
-              onClick={() => { setErro(''); setCodigoAtual(''); setCodigoNovo(''); setCodigoNovo2(''); setMostrarTrocaCodigo(!mostrarTrocaCodigo); }}
-              style={{ background: 'none', border: 'none', color: '#8FA3B8', fontSize: 12, cursor: 'pointer', padding: 0 }}
-            >
-              <i className={`ti ti-chevron-${mostrarTrocaCodigo ? 'up' : 'down'}`} style={{ fontSize: 13, verticalAlign: '-2px', marginRight: 4 }} aria-hidden="true"></i>
-              Trocar código do administrador
+            <button type="button" onClick={() => { setErro(''); setCodigoAtual(''); setCodigoNovo(''); setCodigoNovo2(''); setMostrarTrocaCodigo(!mostrarTrocaCodigo); }} style={{ background: 'none', border: 'none', color: '#8FA3B8', fontSize: 12, cursor: 'pointer', padding: 0 }}>
+              <i className={`ti ti-chevron-${mostrarTrocaCodigo ? 'up' : 'down'}`} style={{ fontSize: 13, verticalAlign: '-2px', marginRight: 4 }} aria-hidden="true"></i>Trocar código do administrador
             </button>
-
             {mostrarTrocaCodigo && (
               <div style={{ marginTop: 10 }}>
                 <label style={label}>Código atual</label>
@@ -493,17 +876,15 @@ export default function App() {
               </div>
             )}
           </div>
-
-          <button type="button" onClick={() => { setErro(''); setScreen('login'); }} style={{ ...ghostBtn, marginTop: 16 }} className="btn-live ghost-live">Voltar ao menu anterior</button>
+          <button type="button" onClick={() => { setErro(''); setScreen('login'); }} style={{ ...ghostBtn, marginTop: 16 }} className="btn-live ghost-live">Voltar ao login</button>
         </div>
       )}
 
       {screen === 'excluir' && (
         <div style={panelStyle} className="screen-enter">
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-            <button aria-label="Voltar" onClick={() => { setErro(''); setEmailExcluir(''); setConfirmExcluir(''); setScreen('producao'); }} style={{ background: 'none', border: 'none', color: '#EDEFF2', cursor: 'pointer' }}>
-              <i className="ti ti-arrow-left" style={{ fontSize: 20 }} aria-hidden="true"></i>
-            </button>
+            <button aria-label="Voltar" onClick={() => { setErro(''); setEmailExcluir(''); setConfirmExcluir(''); setScreen('menu'); }} style={{ background: 'none', border: 'none', color: '#EDEFF2', cursor: 'pointer' }}><i className="ti ti-arrow-left" style={{ fontSize: 20 }} aria-hidden="true"></i></button>
+            <img src={LOGO_SRC} alt="Logo Hao Moto Electric Motors" style={{ width: 26, height: 26, borderRadius: '50%', objectFit: 'cover' }} />
             <h1 style={h1}>Excluir funcionário</h1>
           </div>
           <p style={{ color: '#8FA3B8', fontSize: 12, marginBottom: 4 }}>Use quando alguém for desligado. A pessoa não conseguirá mais fazer login depois disso.</p>
@@ -518,68 +899,429 @@ export default function App() {
         </div>
       )}
 
+      {screen === 'menu' && (
+        <div style={panelStyle} className="screen-enter">
+          <div style={{ textAlign: 'center', marginBottom: 20 }}>
+            <img src={LOGO_SRC} alt="Logo Hao Moto Electric Motors" className="logo-glow" style={{ width: 56, height: 56, borderRadius: '50%', objectFit: 'cover' }} />
+            <h1 style={{ ...h1, marginTop: 10 }}>Página inicial</h1>
+            <p style={{ color: '#8FA3B8', fontSize: 12, margin: '4px 0 0' }}>{perfil?.email} {perfil?.funcao && `· ${perfil.funcao}`} {perfil?.role === 'admin' && <span style={{ color: '#E8A33D' }}>· administrador</span>}</p>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <button type="button" onClick={() => setScreen('producao')} style={{ ...primaryBtn, marginTop: 0 }} className="btn-live"><i className="ti ti-clipboard-list" style={{ fontSize: 16, verticalAlign: '-3px', marginRight: 6 }} aria-hidden="true"></i>Apontamento</button>
+            <button type="button" onClick={() => { setFiltroCdInspecao(''); loadInspecao(); setScreen('inspecao'); }} style={{ ...primaryBtn, marginTop: 0 }} className="btn-live"><i className="ti ti-search" style={{ fontSize: 15, verticalAlign: '-3px', marginRight: 6 }} aria-hidden="true"></i>Inspeção</button>
+            <button type="button" onClick={() => { setFiltroCdManutencao(''); loadManutencao(); setScreen('manutencao'); }} style={{ ...primaryBtn, marginTop: 0 }} className="btn-live"><i className="ti ti-tool" style={{ fontSize: 15, verticalAlign: '-3px', marginRight: 6 }} aria-hidden="true"></i>Manutenção</button>
+            <button type="button" onClick={() => { setErro(''); setScreen('expedicaoMenu'); }} style={{ ...primaryBtn, marginTop: 0 }} className="btn-live"><i className="ti ti-truck" style={{ fontSize: 15, verticalAlign: '-3px', marginRight: 6 }} aria-hidden="true"></i>Expedição</button>
+          </div>
+          {perfil?.role === 'admin' && (
+            <button type="button" onClick={handleBackupCompleto} style={{ ...ghostBtn, marginTop: 16, borderColor: '#E8A33D', color: '#E8A33D' }} className="btn-live ghost-live"><i className="ti ti-database-export" style={{ fontSize: 15, verticalAlign: '-3px', marginRight: 6 }} aria-hidden="true"></i>Backup completo (Excel)</button>
+          )}
+          <button type="button" onClick={handleSair} style={{ ...primaryBtn, marginTop: 20, background: '#A32D2D', color: '#F6DADA' }} className="btn-live">Sair</button>
+        </div>
+      )}
+
+      {screen === 'inspecao' && (
+        <div style={{ ...panelStyle, maxWidth: 460 }} className="screen-enter">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <button aria-label="Voltar" onClick={() => setScreen('menu')} style={{ background: 'none', border: 'none', color: '#EDEFF2', cursor: 'pointer' }}><i className="ti ti-arrow-left" style={{ fontSize: 20 }} aria-hidden="true"></i></button>
+              <img src={LOGO_SRC} alt="Logo Hao Moto Electric Motors" style={{ width: 26, height: 26, borderRadius: '50%', objectFit: 'cover' }} />
+              <h1 style={h1}>Inspeção</h1>
+            </div>
+            <button type="button" onClick={() => setScreen('menu')} style={{ background: 'none', border: '1px solid #3A4756', borderRadius: 8, color: '#B9C4CE', fontSize: 12, padding: '6px 10px', cursor: 'pointer' }} className="btn-live ghost-live">Sair</button>
+          </div>
+          <label style={label}>Filtrar por CD nome</label>
+          <input style={input} className="field-live" value={filtroCdInspecao} onChange={(e) => setFiltroCdInspecao(e.target.value.toUpperCase())} placeholder="Ex: CD001 (deixe vazio para ver todos)" />
+          {erro && <p style={{ color: '#E8927A', fontSize: 12, marginTop: 10 }}>{erro}</p>}
+          {loadingInspecao && <p style={{ color: '#8FA3B8', fontSize: 13, marginTop: 14 }}>Carregando...</p>}
+          {!loadingInspecao && (() => {
+            const listaFiltrada = inspecaoRegistros.filter((r) => !filtroCdInspecao.trim() || (r.cd_nome || '').includes(filtroCdInspecao.trim()));
+            if (listaFiltrada.length === 0) return <p style={{ color: '#8FA3B8', fontSize: 13, marginTop: 14 }}>Nenhum equipamento pendente de inspeção.</p>;
+            return (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 14, maxHeight: 480, overflowY: 'auto' }}>
+                {listaFiltrada.map((r) => (
+                  <div key={r.id} className="row-in" style={{ background: '#2A3542', border: '1px solid #3A4756', borderRadius: 10, padding: '12px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                      <div>
+                        <p style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 16, fontWeight: 700, margin: 0 }}>{r.modelo} · {r.cor}</p>
+                        <p style={{ fontSize: 12, color: '#B9C4CE', margin: '4px 0 0' }}>CD {r.cd_nome} · {r.tipo_servico} · {r.nome_montador}</p>
+                        <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: '#B9C4CE', margin: '4px 0 0' }}>Motor {r.motor} · Chassi {r.chassi}</p>
+                      </div>
+                      <button type="button" onClick={() => handleAbrirChecklist(r.id)} style={{ background: checklistCompleto(edicoesInspecao[r.id]) ? '#2F4D3A' : 'none', border: '1px solid #4C8C5C', color: checklistCompleto(edicoesInspecao[r.id]) ? '#CFEFDB' : '#7CC98C', borderRadius: 6, fontSize: 11, padding: '5px 8px', cursor: 'pointer', whiteSpace: 'nowrap' }} className="btn-live">
+                        {checklistCompleto(edicoesInspecao[r.id]) ? '✓ Check List' : 'Check List'}
+                      </button>
+                    </div>
+                    <label style={{ ...label, marginTop: 10 }}>Inspetor da Qualidade (CD)</label>
+                    <input style={input} className="field-live" value={edicoesInspecao[r.id]?.inspetor ?? ''} onChange={(e) => setEdicoesInspecao((prev) => ({ ...prev, [r.id]: { ...prev[r.id], inspetor: e.target.value.toUpperCase() } }))} placeholder="Nome do inspetor" />
+                    <label style={{ ...label, marginTop: 10 }}>Anotações e anomalias</label>
+                    <textarea style={{ ...input, minHeight: 50, resize: 'vertical', fontSize: 13 }} className="field-live" value={edicoesInspecao[r.id]?.anomalia ?? ''} onChange={(e) => setEdicoesInspecao((prev) => ({ ...prev, [r.id]: { ...prev[r.id], anomalia: e.target.value.toUpperCase() } }))} placeholder="Sem anomalias" />
+                    <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                      <select style={{ ...input, flex: 1 }} className="field-live" value={edicoesInspecao[r.id]?.statusEscolhido ?? ''} onChange={(e) => setEdicoesInspecao((prev) => ({ ...prev, [r.id]: { ...prev[r.id], statusEscolhido: e.target.value } }))}>
+                        <option value="">Selecionar...</option>
+                        <option value="aprovado">Aprovado</option>
+                        <option value="manutencao">Manutenção</option>
+                      </select>
+                      <button type="button" onClick={() => handleSalvarInspecaoItem(r.id)} style={{ ...primaryBtn, marginTop: 0, width: 'auto', padding: '0 16px', fontSize: 13 }} className="btn-live">Salvar</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+          <button type="button" onClick={() => setScreen('menu')} style={{ ...ghostBtn, marginTop: 16 }} className="btn-live ghost-live">Voltar à página inicial</button>
+        </div>
+      )}
+
+      {screen === 'inspecaoChecklist' && checklistItemId && (() => {
+        const item = inspecaoRegistros.find((r) => r.id === checklistItemId);
+        const edicao = edicoesInspecao[checklistItemId];
+        if (!item || !edicao) return null;
+        const respostas = edicao.checklist?.respostas || {};
+        const completo = checklistCompleto(edicao);
+        const setResposta = (chave, valor) => {
+          setEdicoesInspecao((prev) => ({ ...prev, [checklistItemId]: { ...prev[checklistItemId], checklist: { ...prev[checklistItemId].checklist, respostas: { ...prev[checklistItemId].checklist.respostas, [chave]: valor } } } }));
+        };
+        const categorias = [...new Set(CHECKLIST_ITENS.map((i) => i.categoria))];
+        return (
+          <div style={{ ...panelStyle, maxWidth: 500 }} className="screen-enter">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+              <button aria-label="Voltar" onClick={() => setScreen('inspecao')} style={{ background: 'none', border: 'none', color: '#EDEFF2', cursor: 'pointer' }}><i className="ti ti-arrow-left" style={{ fontSize: 20 }} aria-hidden="true"></i></button>
+              <img src={LOGO_SRC} alt="Logo Hao Moto Electric Motors" style={{ width: 26, height: 26, borderRadius: '50%', objectFit: 'cover' }} />
+              <h1 style={h1}>Check List</h1>
+            </div>
+            <p style={{ color: '#8FA3B8', fontSize: 12, margin: '0 0 16px 34px' }}>Check-list de liberação de produto — todos os campos são obrigatórios</p>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6, background: '#2A3542', border: '1px solid #3A4756', borderRadius: 8, padding: 10, fontSize: 12 }}>
+              <div><span style={{ color: '#8FA3B8', fontSize: 10, textTransform: 'uppercase', display: 'block' }}>Modelo</span>{item.modelo}</div>
+              <div><span style={{ color: '#8FA3B8', fontSize: 10, textTransform: 'uppercase', display: 'block' }}>Cor</span>{item.cor}</div>
+              <div><span style={{ color: '#8FA3B8', fontSize: 10, textTransform: 'uppercase', display: 'block' }}>Motor</span>{item.motor}</div>
+              <div><span style={{ color: '#8FA3B8', fontSize: 10, textTransform: 'uppercase', display: 'block' }}>Chassi</span>{item.chassi}</div>
+              <div><span style={{ color: '#8FA3B8', fontSize: 10, textTransform: 'uppercase', display: 'block' }}>Montador (CD)</span>{item.nome_montador}</div>
+              <div><span style={{ color: '#8FA3B8', fontSize: 10, textTransform: 'uppercase', display: 'block' }}>Inspetor</span>{edicao.inspetor || '—'}</div>
+            </div>
+            <label style={{ ...label, marginTop: 12 }}>Nº Bateria</label>
+            <input style={mono} className="field-live" value={edicao.checklist?.numeroBateria ?? ''} onChange={(e) => setEdicoesInspecao((prev) => ({ ...prev, [checklistItemId]: { ...prev[checklistItemId], checklist: { ...prev[checklistItemId].checklist, numeroBateria: e.target.value.toUpperCase() } } }))} placeholder="Nº da bateria" />
+            {!edicao.inspetor?.trim() && <p style={{ color: '#E8927A', fontSize: 12, marginTop: 8 }}>Volte e preencha o "Inspetor da Qualidade (CD)" no card antes de continuar.</p>}
+            {categorias.map((cat) => (
+              <div key={cat} style={{ marginTop: 16 }}>
+                <p style={{ ...label, marginTop: 0, color: '#E8A33D' }}>{cat}</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {CHECKLIST_ITENS.filter((i) => i.categoria === cat).map((i) => (
+                    <div key={i.chave} style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#2A3542', border: '1px solid #3A4756', borderRadius: 8, padding: '8px 10px' }}>
+                      <span style={{ fontSize: 12, flex: 1 }}><strong style={{ color: '#8FA3B8' }}>{i.chave}</strong> {i.texto}</span>
+                      <button type="button" onClick={() => setResposta(i.chave, 'Aprov.')} style={{ background: respostas[i.chave] === 'Aprov.' ? '#2F4D3A' : 'none', border: '1px solid #4C8C5C', color: respostas[i.chave] === 'Aprov.' ? '#CFEFDB' : '#7CC98C', borderRadius: 6, fontSize: 11, padding: '5px 8px', cursor: 'pointer' }} className="btn-live">Aprov.</button>
+                      <button type="button" onClick={() => setResposta(i.chave, 'N/A')} style={{ background: respostas[i.chave] === 'N/A' ? '#3A3F45' : 'none', border: '1px solid #5A6470', color: respostas[i.chave] === 'N/A' ? '#EDEFF2' : '#8FA3B8', borderRadius: 6, fontSize: 11, padding: '5px 8px', cursor: 'pointer' }} className="btn-live">N/A</button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+            {!completo && <p style={{ color: '#E8927A', fontSize: 12, marginTop: 14 }}>Preencha todos os itens, o Nº da bateria e o nome do inspetor para liberar a impressão e o salvamento.</p>}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 16 }}>
+              <button type="button" disabled={!completo} onClick={() => handleImprimirChecklist(item, edicao)} style={{ ...ghostBtn, marginTop: 0, opacity: completo ? 1 : 0.5, cursor: completo ? 'pointer' : 'not-allowed' }} className="btn-live ghost-live">Imprimir</button>
+              <button type="button" disabled={!completo} onClick={() => { setToast('Check List salvo.'); setScreen('inspecao'); }} style={{ ...primaryBtn, marginTop: 0, opacity: completo ? 1 : 0.5, cursor: completo ? 'pointer' : 'not-allowed' }} className="btn-live">Salvar</button>
+            </div>
+            <button type="button" onClick={() => setScreen('inspecao')} style={{ ...ghostBtn, marginTop: 10 }} className="btn-live ghost-live">Voltar</button>
+          </div>
+        );
+      })()}
+
+      {screen === 'manutencao' && (
+        <div style={{ ...panelStyle, maxWidth: 460 }} className="screen-enter">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <button aria-label="Voltar" onClick={() => setScreen('menu')} style={{ background: 'none', border: 'none', color: '#EDEFF2', cursor: 'pointer' }}><i className="ti ti-arrow-left" style={{ fontSize: 20 }} aria-hidden="true"></i></button>
+              <img src={LOGO_SRC} alt="Logo Hao Moto Electric Motors" style={{ width: 26, height: 26, borderRadius: '50%', objectFit: 'cover' }} />
+              <h1 style={h1}>Manutenção</h1>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button type="button" onClick={handleRelatorioDiarioManutencao} style={{ background: 'none', border: '1px solid #E8A33D', borderRadius: 8, color: '#E8A33D', fontSize: 12, padding: '6px 10px', cursor: 'pointer' }} className="btn-live ghost-live"><i className="ti ti-file-spreadsheet" style={{ fontSize: 14, verticalAlign: '-2px', marginRight: 4 }} aria-hidden="true"></i>Relatório diário</button>
+              <button type="button" onClick={() => setScreen('menu')} style={{ background: 'none', border: '1px solid #3A4756', borderRadius: 8, color: '#B9C4CE', fontSize: 12, padding: '6px 10px', cursor: 'pointer' }} className="btn-live ghost-live">Sair</button>
+            </div>
+          </div>
+          <label style={label}>Filtrar por CD nome</label>
+          <input style={input} className="field-live" value={filtroCdManutencao} onChange={(e) => setFiltroCdManutencao(e.target.value.toUpperCase())} placeholder="Ex: CD001 (deixe vazio para ver todos)" />
+          {erro && <p style={{ color: '#E8927A', fontSize: 12, marginTop: 10 }}>{erro}</p>}
+          {loadingManutencao && <p style={{ color: '#8FA3B8', fontSize: 13, marginTop: 14 }}>Carregando...</p>}
+          {!loadingManutencao && (() => {
+            const listaFiltrada = manutencaoRegistros.filter((r) => !filtroCdManutencao.trim() || (r.cd_nome || '').includes(filtroCdManutencao.trim()));
+            if (listaFiltrada.length === 0) return <p style={{ color: '#8FA3B8', fontSize: 13, marginTop: 14 }}>Nenhum equipamento pendente de manutenção.</p>;
+            return (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 14, maxHeight: 480, overflowY: 'auto' }}>
+                {listaFiltrada.map((r) => (
+                  <div key={r.id} className="row-in" style={{ background: '#2A3542', border: '1px solid #3A4756', borderRadius: 10, padding: '12px' }}>
+                    <p style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 16, fontWeight: 700, margin: 0 }}>{r.modelo} · {r.cor}</p>
+                    <p style={{ fontSize: 12, color: '#B9C4CE', margin: '4px 0 0' }}>CD {r.cd_nome} · {r.tipo_servico} · {r.nome_montador}</p>
+                    <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: '#B9C4CE', margin: '4px 0 0' }}>Motor {r.motor} · Chassi {r.chassi}</p>
+                    <label style={{ ...label, marginTop: 10 }}>Anotações e anomalias (o que foi consertado)</label>
+                    <textarea style={{ ...input, minHeight: 50, resize: 'vertical', fontSize: 13 }} className="field-live" value={edicoesManutencao[r.id]?.anomalia ?? ''} onChange={(e) => setEdicoesManutencao((prev) => ({ ...prev, [r.id]: { anomalia: e.target.value.toUpperCase() } }))} placeholder="Descreva o que foi feito" />
+                    <button type="button" onClick={() => handleEnviarInspecao(r.id)} style={{ ...primaryBtn, marginTop: 10, fontSize: 14 }} className="btn-live">Enviar para Inspeção</button>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+          <button type="button" onClick={() => setScreen('menu')} style={{ ...ghostBtn, marginTop: 16 }} className="btn-live ghost-live">Voltar à página inicial</button>
+        </div>
+      )}
+
+      {screen === 'expedicaoMenu' && (
+        <div style={panelStyle} className="screen-enter">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 20 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <button aria-label="Voltar" onClick={() => setScreen('menu')} style={{ background: 'none', border: 'none', color: '#EDEFF2', cursor: 'pointer' }}><i className="ti ti-arrow-left" style={{ fontSize: 20 }} aria-hidden="true"></i></button>
+              <img src={LOGO_SRC} alt="Logo Hao Moto Electric Motors" style={{ width: 26, height: 26, borderRadius: '50%', objectFit: 'cover' }} />
+              <h1 style={h1}>Expedição</h1>
+            </div>
+            <button type="button" onClick={() => setScreen('menu')} style={{ background: 'none', border: '1px solid #3A4756', borderRadius: 8, color: '#B9C4CE', fontSize: 12, padding: '6px 10px', cursor: 'pointer' }} className="btn-live ghost-live">Sair</button>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <button type="button" onClick={() => { setFiltroCdExpedicao(''); loadExpedicao(); setScreen('expedicao'); }} style={{ ...primaryBtn, marginTop: 0 }} className="btn-live">Gerar Pedido</button>
+            <button type="button" onClick={() => { loadPedidosPendentes(); setScreen('expedicaoPedidosList'); }} style={{ ...ghostBtn, marginTop: 0, borderColor: '#E8A33D', color: '#E8A33D' }} className="btn-live ghost-live">Revisar</button>
+            <button type="button" onClick={() => { loadPedidosPendentes(); setScreen('expedicaoPedidosList'); }} style={{ ...ghostBtn, marginTop: 0, borderColor: '#4C8C5C', color: '#7CC98C' }} className="btn-live ghost-live">Aprovar Pedido</button>
+          </div>
+        </div>
+      )}
+
+      {screen === 'expedicao' && (
+        <div style={{ ...panelStyle, maxWidth: 520 }} className="screen-enter">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <button aria-label="Voltar" onClick={() => setScreen('expedicaoMenu')} style={{ background: 'none', border: 'none', color: '#EDEFF2', cursor: 'pointer' }}><i className="ti ti-arrow-left" style={{ fontSize: 20 }} aria-hidden="true"></i></button>
+              <img src={LOGO_SRC} alt="Logo Hao Moto Electric Motors" style={{ width: 26, height: 26, borderRadius: '50%', objectFit: 'cover' }} />
+              <h1 style={h1}>Gerar Pedido</h1>
+            </div>
+            <button type="button" onClick={() => setScreen('menu')} style={{ background: 'none', border: '1px solid #3A4756', borderRadius: 8, color: '#B9C4CE', fontSize: 12, padding: '6px 10px', cursor: 'pointer' }} className="btn-live ghost-live">Sair</button>
+          </div>
+          <label style={label}>Filtrar por CD nome</label>
+          <select style={input} className="field-live" value={filtroCdExpedicao} onChange={(e) => setFiltroCdExpedicao(e.target.value)}>
+            <option value="">Todos os CDs</option>
+            {[...new Set(expedicaoRegistros.map((r) => r.cd_nome).filter(Boolean))].map((cd) => (<option key={cd} value={cd}>{cd}</option>))}
+          </select>
+          {erro && <p style={{ color: '#E8927A', fontSize: 12, marginTop: 10 }}>{erro}</p>}
+          {loadingExpedicao && <p style={{ color: '#8FA3B8', fontSize: 13, marginTop: 14 }}>Carregando...</p>}
+          {!loadingExpedicao && (() => {
+            const listaFiltrada = expedicaoRegistros.filter((r) => !filtroCdExpedicao || r.cd_nome === filtroCdExpedicao);
+            if (listaFiltrada.length === 0) return <p style={{ color: '#8FA3B8', fontSize: 13, marginTop: 14 }}>Nenhum equipamento aprovado aguardando expedição.</p>;
+            return (
+              <div style={{ marginTop: 14 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1fr 1fr 1fr 1.1fr', gap: 6, fontSize: 11, color: '#8FA3B8', textTransform: 'uppercase', padding: '0 4px', marginBottom: 6 }}>
+                  <span>Modelo</span><span>Cor</span><span>Motor</span><span>Chassi</span><span>Status</span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 420, overflowY: 'auto' }}>
+                  {listaFiltrada.map((r) => (
+                    <div key={r.id} className="row-in" style={{ display: 'grid', gridTemplateColumns: '1.3fr 1fr 1fr 1fr 1.1fr', gap: 6, alignItems: 'center', background: '#2A3542', border: '1px solid #3A4756', borderRadius: 8, padding: '8px' }}>
+                      <span style={{ fontSize: 12, fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 700 }}>{r.modelo}</span>
+                      <span style={{ fontSize: 12 }}>{r.cor}</span>
+                      <span style={{ fontSize: 12, fontFamily: "'JetBrains Mono', monospace" }}>{r.motor}</span>
+                      <span style={{ fontSize: 12, fontFamily: "'JetBrains Mono', monospace" }}>{r.chassi}</span>
+                      <select style={{ ...input, padding: '4px 6px', fontSize: 12 }} className="field-live" value={statusPorItemExpedicao[r.id] || 'aberto'} onChange={(e) => setStatusPorItemExpedicao((prev) => ({ ...prev, [r.id]: e.target.value }))}>
+                        <option value="aberto">Aberto</option>
+                        <option value="expedido">Expedido</option>
+                      </select>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+          <button type="button" onClick={handleGerarRomaneioClick} style={primaryBtn} className="btn-live">Gerar Romaneio</button>
+          <button type="button" onClick={() => setScreen('expedicaoMenu')} style={{ ...ghostBtn, marginTop: 10 }} className="btn-live ghost-live">Voltar</button>
+        </div>
+      )}
+
+      {screen === 'expedicaoFormulario' && (
+        <div style={{ ...panelStyle, maxWidth: 460 }} className="screen-enter">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+            <button aria-label="Voltar" onClick={() => setScreen('expedicao')} style={{ background: 'none', border: 'none', color: '#EDEFF2', cursor: 'pointer' }}><i className="ti ti-arrow-left" style={{ fontSize: 20 }} aria-hidden="true"></i></button>
+            <img src={LOGO_SRC} alt="Logo Hao Moto Electric Motors" style={{ width: 26, height: 26, borderRadius: '50%', objectFit: 'cover' }} />
+            <h1 style={h1}>Romaneio de entrega</h1>
+          </div>
+          <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: '#E8A33D', fontWeight: 700, margin: '0 0 16px 34px' }}>Ordem de entrega: {numeroOrdemAtual}</p>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div><label style={label}>Data</label><input style={{ ...input, padding: '8px 10px', fontSize: 13 }} className="field-live" type="date" value={formExpedicao.data} onChange={(e) => setFormExpedicao({ ...formExpedicao, data: e.target.value })} /></div>
+            <div><label style={label}>Placa do caminhão</label><input style={{ ...mono, padding: '8px 10px', fontSize: 13 }} className="field-live" value={formExpedicao.placa} onChange={(e) => setFormExpedicao({ ...formExpedicao, placa: e.target.value.toUpperCase() })} placeholder="ABC-1D23" /></div>
+          </div>
+          <label style={{ ...label, marginTop: 10 }}>Nome do motorista</label>
+          <input style={{ ...input, padding: '10px 12px', fontSize: 15 }} className="field-live" value={formExpedicao.motorista} onChange={(e) => setFormExpedicao({ ...formExpedicao, motorista: e.target.value.toUpperCase() })} placeholder="Nome completo" />
+          <div style={{ display: 'grid', gridTemplateColumns: '0.8fr 1.2fr', gap: 10, marginTop: 10 }}>
+            <div><label style={label}>CPF</label><input style={{ ...mono, padding: '6px 8px', fontSize: 12 }} className="field-live" value={formExpedicao.cpf} onChange={(e) => setFormExpedicao({ ...formExpedicao, cpf: e.target.value })} placeholder="000.000.000-00" /></div>
+            <div><label style={label}>Chave Pix</label><input style={{ ...mono, padding: '8px 10px', fontSize: 13 }} className="field-live" value={formExpedicao.chavePix} onChange={(e) => setFormExpedicao({ ...formExpedicao, chavePix: e.target.value })} placeholder="CPF, email, telefone ou aleatória" /></div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 10 }}>
+            <div><label style={label}>Cliente</label><input style={{ ...input, padding: '8px 10px', fontSize: 13 }} className="field-live" value={formExpedicao.cliente} onChange={(e) => setFormExpedicao({ ...formExpedicao, cliente: e.target.value.toUpperCase() })} placeholder="Nome do cliente" /></div>
+            <div><label style={label}>Destino</label><input style={{ ...input, padding: '8px 10px', fontSize: 13 }} className="field-live" value={formExpedicao.destino} onChange={(e) => setFormExpedicao({ ...formExpedicao, destino: e.target.value.toUpperCase() })} placeholder="Cidade/UF" /></div>
+          </div>
+          <label style={{ ...label, marginTop: 10 }}>Endereço</label>
+          <input style={{ ...input, padding: '8px 10px', fontSize: 13 }} className="field-live" value={formExpedicao.endereco} onChange={(e) => setFormExpedicao({ ...formExpedicao, endereco: e.target.value.toUpperCase() })} placeholder="Rua, número, bairro" />
+          <p style={{ ...label, marginTop: 16 }}>Equipamentos selecionados ({itensParaEnvio.length})</p>
+          <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr 1fr', gap: 6, fontSize: 11, color: '#8FA3B8', textTransform: 'uppercase', padding: '0 4px', marginBottom: 4 }}>
+            <span>Modelo</span><span>Cor</span><span>Motor</span><span>Chassi</span>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 4, maxHeight: 160, overflowY: 'auto' }}>
+            {itensParaEnvio.map((r) => (
+              <div key={r.id} style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr 1fr', gap: 6, alignItems: 'center', background: '#2A3542', border: '1px solid #3A4756', borderRadius: 8, padding: '8px 10px', fontSize: 12 }}>
+                <span style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 700 }}>{r.modelo}</span><span>{r.cor}</span>
+                <span style={{ fontFamily: "'JetBrains Mono', monospace" }}>{r.motor}</span><span style={{ fontFamily: "'JetBrains Mono', monospace" }}>{r.chassi}</span>
+              </div>
+            ))}
+          </div>
+          {erro && <p style={{ color: '#E8927A', fontSize: 12, marginTop: 10 }}>{erro}</p>}
+          <button type="button" onClick={handleSalvarPedidoNovo} style={primaryBtn} className="btn-live">Salvar</button>
+          <button type="button" onClick={() => setScreen('expedicao')} style={{ ...ghostBtn, marginTop: 10 }} className="btn-live ghost-live">Cancelar</button>
+        </div>
+      )}
+
+      {screen === 'expedicaoPedidosList' && (
+        <div style={{ ...panelStyle, maxWidth: 540 }} className="screen-enter">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <button aria-label="Voltar" onClick={() => setScreen('expedicaoMenu')} style={{ background: 'none', border: 'none', color: '#EDEFF2', cursor: 'pointer' }}><i className="ti ti-arrow-left" style={{ fontSize: 20 }} aria-hidden="true"></i></button>
+              <img src={LOGO_SRC} alt="Logo Hao Moto Electric Motors" style={{ width: 26, height: 26, borderRadius: '50%', objectFit: 'cover' }} />
+              <h1 style={h1}>Pedidos pendentes</h1>
+            </div>
+            <button type="button" onClick={() => setScreen('menu')} style={{ background: 'none', border: '1px solid #3A4756', borderRadius: 8, color: '#B9C4CE', fontSize: 12, padding: '6px 10px', cursor: 'pointer' }} className="btn-live ghost-live">Sair</button>
+          </div>
+          {erro && <p style={{ color: '#E8927A', fontSize: 12, marginTop: 10 }}>{erro}</p>}
+          {loadingBusca && <p style={{ color: '#8FA3B8', fontSize: 13, marginTop: 14 }}>Carregando...</p>}
+          {!loadingBusca && pedidosPendentes.length === 0 && <p style={{ color: '#8FA3B8', fontSize: 13, marginTop: 14 }}>Nenhum pedido pendente no momento.</p>}
+          {!loadingBusca && pedidosPendentes.length > 0 && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr 1.3fr 2fr', gap: 6, fontSize: 11, color: '#8FA3B8', textTransform: 'uppercase', padding: '0 4px', marginTop: 14, marginBottom: 6 }}>
+              <span>Data</span><span>Nº ordem</span><span>CD nome</span><span>Ações</span>
+            </div>
+          )}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 460, overflowY: 'auto' }}>
+            {pedidosPendentes.map((p) => (
+              <div key={p.numero} className="row-in" style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr 1.3fr 2fr', gap: 6, alignItems: 'center', background: '#2A3542', border: '1px solid #3A4756', borderRadius: 8, padding: '8px' }}>
+                <span style={{ fontSize: 12 }}>{p.data ? new Date(p.data + 'T00:00:00').toLocaleDateString('pt-BR') : ''}</span>
+                <span style={{ fontSize: 12, fontFamily: "'JetBrains Mono', monospace", color: '#E8A33D' }}>{p.numero}</span>
+                <span style={{ fontSize: 12 }}>{p.cd_nomes || '—'}</span>
+                <div style={{ display: 'flex', gap: 4 }}>
+                  <button type="button" onClick={() => handleGerarPdfPedido(p)} style={{ background: 'none', border: '1px solid #3A4756', color: '#B9C4CE', borderRadius: 6, fontSize: 10, padding: '4px 6px', cursor: 'pointer' }}>Gerar PDF</button>
+                  <button type="button" onClick={() => handleAlterarPedido(p)} style={{ background: 'none', border: '1px solid #E8A33D', color: '#E8A33D', borderRadius: 6, fontSize: 10, padding: '4px 6px', cursor: 'pointer' }}>Alterar</button>
+                  <button type="button" onClick={() => handleAbrirAprovarNotaFiscal(p)} style={{ background: 'none', border: '1px solid #4C8C5C', color: '#7CC98C', borderRadius: 6, fontSize: 10, padding: '4px 6px', cursor: 'pointer' }}>Aprovar</button>
+                </div>
+              </div>
+            ))}
+          </div>
+          <button type="button" onClick={() => setScreen('expedicaoMenu')} style={{ ...ghostBtn, marginTop: 16 }} className="btn-live ghost-live">Voltar</button>
+        </div>
+      )}
+
+      {screen === 'expedicaoRevisarItens' && pedidoCarregado && (
+        <div style={{ ...panelStyle, maxWidth: 480 }} className="screen-enter">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+            <button aria-label="Voltar" onClick={() => setScreen('expedicaoPedidosList')} style={{ background: 'none', border: 'none', color: '#EDEFF2', cursor: 'pointer' }}><i className="ti ti-arrow-left" style={{ fontSize: 20 }} aria-hidden="true"></i></button>
+            <img src={LOGO_SRC} alt="Logo Hao Moto Electric Motors" style={{ width: 26, height: 26, borderRadius: '50%', objectFit: 'cover' }} />
+            <h1 style={h1}>Alterar pedido</h1>
+          </div>
+          <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: '#E8A33D', fontWeight: 700, margin: '0 0 16px 34px' }}>Ordem de entrega: {pedidoCarregado.numero}</p>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div><label style={label}>Data</label><input style={{ ...input, padding: '8px 10px', fontSize: 13 }} className="field-live" type="date" value={formExpedicao.data} onChange={(e) => setFormExpedicao({ ...formExpedicao, data: e.target.value })} /></div>
+            <div><label style={label}>Placa do caminhão</label><input style={{ ...mono, padding: '8px 10px', fontSize: 13 }} className="field-live" value={formExpedicao.placa} onChange={(e) => setFormExpedicao({ ...formExpedicao, placa: e.target.value.toUpperCase() })} placeholder="ABC-1D23" /></div>
+          </div>
+          <label style={{ ...label, marginTop: 10 }}>Nome do motorista</label>
+          <input style={{ ...input, padding: '8px 10px', fontSize: 13 }} className="field-live" value={formExpedicao.motorista} onChange={(e) => setFormExpedicao({ ...formExpedicao, motorista: e.target.value.toUpperCase() })} placeholder="Nome completo" />
+          <div style={{ display: 'grid', gridTemplateColumns: '0.8fr 1.2fr', gap: 10, marginTop: 10 }}>
+            <div><label style={label}>CPF</label><input style={{ ...mono, padding: '6px 8px', fontSize: 12 }} className="field-live" value={formExpedicao.cpf} onChange={(e) => setFormExpedicao({ ...formExpedicao, cpf: e.target.value })} placeholder="000.000.000-00" /></div>
+            <div><label style={label}>Chave Pix</label><input style={{ ...mono, padding: '8px 10px', fontSize: 13 }} className="field-live" value={formExpedicao.chavePix} onChange={(e) => setFormExpedicao({ ...formExpedicao, chavePix: e.target.value })} placeholder="Chave Pix" /></div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 10 }}>
+            <div><label style={label}>Cliente</label><input style={{ ...input, padding: '8px 10px', fontSize: 13 }} className="field-live" value={formExpedicao.cliente} onChange={(e) => setFormExpedicao({ ...formExpedicao, cliente: e.target.value.toUpperCase() })} placeholder="Nome do cliente" /></div>
+            <div><label style={label}>Destino</label><input style={{ ...input, padding: '8px 10px', fontSize: 13 }} className="field-live" value={formExpedicao.destino} onChange={(e) => setFormExpedicao({ ...formExpedicao, destino: e.target.value.toUpperCase() })} placeholder="Cidade/UF" /></div>
+          </div>
+          <label style={{ ...label, marginTop: 10 }}>Endereço</label>
+          <input style={{ ...input, padding: '8px 10px', fontSize: 13 }} className="field-live" value={formExpedicao.endereco} onChange={(e) => setFormExpedicao({ ...formExpedicao, endereco: e.target.value.toUpperCase() })} placeholder="Rua, número, bairro" />
+          <p style={{ ...label, marginTop: 16 }}>Equipamentos no pedido ({itensDoPedido.length})</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 4, maxHeight: 160, overflowY: 'auto' }}>
+            {itensDoPedido.length === 0 && <p style={{ color: '#8FA3B8', fontSize: 12 }}>Nenhum equipamento neste pedido.</p>}
+            {itensDoPedido.map((r) => (
+              <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#2A3542', border: '1px solid #3A4756', borderRadius: 8, padding: '8px 10px', fontSize: 12 }}>
+                <span>{r.modelo} · {r.cor} · Motor {r.motor} · Chassi {r.chassi}</span>
+                <button type="button" onClick={() => handleRemoverItemRevisao(r.id)} style={{ background: 'none', border: '1px solid #5A3730', color: '#E8927A', borderRadius: 6, fontSize: 11, padding: '4px 8px', cursor: 'pointer' }}>Remover</button>
+              </div>
+            ))}
+          </div>
+          <p style={{ ...label, marginTop: 16 }}>Equipamentos disponíveis para incluir ({itensDisponiveisRevisao.length})</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 4, maxHeight: 160, overflowY: 'auto' }}>
+            {itensDisponiveisRevisao.length === 0 && <p style={{ color: '#8FA3B8', fontSize: 12 }}>Nenhum outro equipamento aprovado disponível.</p>}
+            {itensDisponiveisRevisao.map((r) => (
+              <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#2A3542', border: '1px solid #3A4756', borderRadius: 8, padding: '8px 10px', fontSize: 12 }}>
+                <span>{r.modelo} · {r.cor} · Motor {r.motor} · Chassi {r.chassi}</span>
+                <button type="button" onClick={() => handleAdicionarItemRevisao(r.id)} style={{ background: 'none', border: '1px solid #4C8C5C', color: '#7CC98C', borderRadius: 6, fontSize: 11, padding: '4px 8px', cursor: 'pointer' }}>Incluir</button>
+              </div>
+            ))}
+          </div>
+          {erro && <p style={{ color: '#E8927A', fontSize: 12, marginTop: 10 }}>{erro}</p>}
+          <button type="button" onClick={handleSalvarRevisao} style={primaryBtn} className="btn-live">Salvar alterações</button>
+          <button type="button" onClick={() => setScreen('expedicaoPedidosList')} style={{ ...ghostBtn, marginTop: 10 }} className="btn-live ghost-live">Cancelar</button>
+        </div>
+      )}
+
+      {screen === 'expedicaoAprovarNotaFiscal' && pedidoCarregado && (
+        <div style={{ ...panelStyle, maxWidth: 460 }} className="screen-enter">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+            <button aria-label="Voltar" onClick={() => setScreen('expedicaoPedidosList')} style={{ background: 'none', border: 'none', color: '#EDEFF2', cursor: 'pointer' }}><i className="ti ti-arrow-left" style={{ fontSize: 20 }} aria-hidden="true"></i></button>
+            <img src={LOGO_SRC} alt="Logo Hao Moto Electric Motors" style={{ width: 26, height: 26, borderRadius: '50%', objectFit: 'cover' }} />
+            <h1 style={h1}>Aprovar pedido</h1>
+          </div>
+          <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: '#E8A33D', fontWeight: 700, margin: '0 0 16px 34px' }}>Ordem de entrega: {pedidoCarregado.numero}</p>
+          <div style={{ background: '#2A3542', border: '1px solid #3A4756', borderRadius: 10, padding: 12, fontSize: 13 }}>
+            <p style={{ margin: 0 }}><strong>Motorista:</strong> {formExpedicao.motorista}</p>
+            <p style={{ margin: '4px 0 0' }}><strong>CPF:</strong> {formExpedicao.cpf} · <strong>Placa:</strong> {formExpedicao.placa}</p>
+            <p style={{ margin: '4px 0 0' }}><strong>Cliente:</strong> {formExpedicao.cliente}</p>
+            <p style={{ margin: '4px 0 0' }}><strong>Destino:</strong> {formExpedicao.destino}</p>
+          </div>
+          <p style={{ ...label, marginTop: 16 }}>Equipamentos ({itensDoPedido.length})</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 4, maxHeight: 200, overflowY: 'auto' }}>
+            {itensDoPedido.map((r) => (<div key={r.id} style={{ background: '#2A3542', border: '1px solid #3A4756', borderRadius: 8, padding: '8px 10px', fontSize: 12 }}>{r.modelo} · {r.cor} · Motor {r.motor} · Chassi {r.chassi}</div>))}
+          </div>
+          <label style={{ ...label, marginTop: 16 }}>Número da nota fiscal</label>
+          <input style={mono} className="field-live" value={notaFiscal} onChange={(e) => setNotaFiscal(e.target.value.toUpperCase())} placeholder="Ex: 000123456" onKeyDown={(e) => { if (e.key === 'Enter') handleSalvarAprovacaoComNotaFiscal(); }} />
+          <p style={{ color: '#8FA3B8', fontSize: 12, marginTop: 10 }}>Ao salvar, o PDF final é gerado (com a nota fiscal) e o estoque é baixado — essa ação não pode ser desfeita.</p>
+          {erro && <p style={{ color: '#E8927A', fontSize: 12, marginTop: 10 }}>{erro}</p>}
+          <button type="button" onClick={handleSalvarAprovacaoComNotaFiscal} style={{ ...primaryBtn, background: '#4C8C5C', color: '#F2FBF4' }} className="btn-live">Salvar</button>
+          <button type="button" onClick={() => setScreen('expedicaoPedidosList')} style={{ ...ghostBtn, marginTop: 10 }} className="btn-live ghost-live">Cancelar</button>
+        </div>
+      )}
+
       {screen === 'producao' && (
         <div style={panelStyle} className="screen-enter">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <button aria-label="Voltar à página inicial" onClick={() => setScreen('menu')} style={{ background: 'none', border: 'none', color: '#EDEFF2', cursor: 'pointer', padding: 0, display: 'flex' }}><i className="ti ti-arrow-left" style={{ fontSize: 18 }} aria-hidden="true"></i></button>
               <img src={LOGO_SRC} alt="Logo Hao Moto Electric Motors" className="logo-glow" style={{ width: 30, height: 30, borderRadius: '50%', objectFit: 'cover' }} />
               <h1 style={h1}>Apontamento</h1>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
-              {perfil?.role === 'admin' && (
-                <button onClick={() => { setEmailExcluir(''); setConfirmExcluir(''); setErro(''); setScreen('excluir'); }} style={{ background: 'none', border: '1px solid #3A4756', borderRadius: 8, color: '#B9C4CE', fontSize: 12, padding: '6px 10px', cursor: 'pointer' }}>
-                  <i className="ti ti-user-off" style={{ fontSize: 14, verticalAlign: '-2px', marginRight: 4 }} aria-hidden="true"></i>Excluir
-                </button>
-              )}
-              {perfil?.role === 'admin' && (
-                <button onClick={() => { loadRegistros(); setScreen('lista'); }} style={{ background: 'none', border: '1px solid #3A4756', borderRadius: 8, color: '#B9C4CE', fontSize: 12, padding: '6px 10px', cursor: 'pointer' }}>
-                  <i className="ti ti-list" style={{ fontSize: 14, verticalAlign: '-2px', marginRight: 4 }} aria-hidden="true"></i>Registros
-                </button>
-              )}
+              {perfil?.role === 'admin' && (<button onClick={() => { setEmailExcluir(''); setConfirmExcluir(''); setErro(''); setScreen('excluir'); }} style={{ background: 'none', border: '1px solid #3A4756', borderRadius: 8, color: '#B9C4CE', fontSize: 12, padding: '6px 10px', cursor: 'pointer' }}><i className="ti ti-user-off" style={{ fontSize: 14, verticalAlign: '-2px', marginRight: 4 }} aria-hidden="true"></i>Excluir</button>)}
+              {perfil?.role === 'admin' && (<button onClick={() => { loadRegistros(); setScreen('lista'); }} style={{ background: 'none', border: '1px solid #3A4756', borderRadius: 8, color: '#B9C4CE', fontSize: 12, padding: '6px 10px', cursor: 'pointer' }}><i className="ti ti-list" style={{ fontSize: 14, verticalAlign: '-2px', marginRight: 4 }} aria-hidden="true"></i>Registros</button>)}
             </div>
           </div>
           <p style={{ color: '#8FA3B8', fontSize: 12, margin: '0 0 4px' }}>Logado como {perfil?.email} {perfil?.role === 'admin' && <span style={{ color: '#E8A33D' }}>· administrador</span>}</p>
-
           <label style={label}>CD nome</label>
-          <input style={input} className="field-live" value={form.cdNome} onChange={(e) => setForm({ ...form, cdNome: e.target.value })} placeholder="Ex: CD001" />
+          <input style={input} className="field-live" value={form.cdNome} onChange={(e) => setForm({ ...form, cdNome: e.target.value.toUpperCase() })} placeholder="Ex: CD001" />
           <label style={label}>Nome montador</label>
-          <input style={input} className="field-live" value={form.nomeMontador} onChange={(e) => setForm({ ...form, nomeMontador: e.target.value })} placeholder="Nome do montador" />
+          <input style={input} className="field-live" value={form.nomeMontador} onChange={(e) => setForm({ ...form, nomeMontador: e.target.value.toUpperCase() })} placeholder="Nome do montador" />
           <label style={label}>Serviço</label>
           <select style={input} className="field-live" value={form.tipoServico} onChange={(e) => setForm({ ...form, tipoServico: e.target.value })}>
             <option value="">Selecionar...</option>
             <option value="Montagem">Montagem</option>
-            <option value="Recuperação">Recuperação</option>
             <option value="Manutenção">Manutenção</option>
           </select>
           <label style={label}>Modelo</label>
-          <input style={input} className="field-live" value={form.modelo} onChange={(e) => setForm({ ...form, modelo: e.target.value })} placeholder="Ex: XL-200" />
+          <input style={input} className="field-live" value={form.modelo} onChange={(e) => setForm({ ...form, modelo: e.target.value.toUpperCase() })} placeholder="Ex: XL-200" />
           <label style={label}>Cor</label>
-          <input style={input} className="field-live" value={form.cor} onChange={(e) => setForm({ ...form, cor: e.target.value })} placeholder="Ex: Prata" />
+          <input style={input} className="field-live" value={form.cor} onChange={(e) => setForm({ ...form, cor: e.target.value.toUpperCase() })} placeholder="Ex: Prata" />
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <div>
-              <label style={label}>Motor</label>
-              <input style={mono} className="field-live" value={form.motor} onChange={(e) => setForm({ ...form, motor: e.target.value })} placeholder="Nº motor" />
-            </div>
-            <div>
-              <label style={label}>Chassi</label>
-              <input style={mono} className="field-live" value={form.chassi} onChange={(e) => setForm({ ...form, chassi: e.target.value })} placeholder="Nº chassi" />
-            </div>
+            <div><label style={label}>Motor</label><input style={mono} className="field-live" value={form.motor} onChange={(e) => setForm({ ...form, motor: e.target.value.toUpperCase() })} placeholder="Nº motor" /></div>
+            <div><label style={label}>Chassi</label><input style={mono} className="field-live" value={form.chassi} onChange={(e) => setForm({ ...form, chassi: e.target.value.toUpperCase() })} placeholder="Nº chassi" /></div>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 10 }}>
-            <div>
-              <label style={label}>Hora início</label>
-              <input style={mono} className="field-live" type="time" value={form.horaInicio} onChange={(e) => setForm({ ...form, horaInicio: e.target.value })} />
-            </div>
-            <div>
-              <label style={label}>Hora fim</label>
-              <input style={mono} className="field-live" type="time" value={form.horaFim} onChange={(e) => setForm({ ...form, horaFim: e.target.value })} />
-            </div>
+            <div><label style={label}>Hora início</label><input style={mono} className="field-live" type="time" value={form.horaInicio} onChange={(e) => setForm({ ...form, horaInicio: e.target.value })} /></div>
+            <div><label style={label}>Hora fim</label><input style={mono} className="field-live" type="time" value={form.horaFim} onChange={(e) => setForm({ ...form, horaFim: e.target.value })} /></div>
           </div>
           <label style={label}>Anotações de anomalia</label>
-          <textarea style={{ ...input, minHeight: 60, resize: 'vertical' }} value={form.anomalia} onChange={(e) => setForm({ ...form, anomalia: e.target.value })} placeholder="Descreva a anomalia, se houver..." />
-
+          <textarea style={{ ...input, minHeight: 60, resize: 'vertical' }} value={form.anomalia} onChange={(e) => setForm({ ...form, anomalia: e.target.value.toUpperCase() })} placeholder="Descreva a anomalia, se houver..." />
           {erro && <p style={{ color: '#E8927A', fontSize: 12, marginTop: 10 }}>{erro}</p>}
-
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginTop: 18 }}>
             <button onClick={handleSalvar} style={{ ...primaryBtn, marginTop: 0, fontSize: 14 }} className="btn-live">Salvar</button>
             <button onClick={handleNovo} style={{ ...ghostBtn, marginTop: 0 }} className="btn-live ghost-live">Novo</button>
@@ -592,19 +1334,14 @@ export default function App() {
         <div style={panelStyle} className="screen-enter">
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <button aria-label="Voltar" onClick={() => setScreen('producao')} style={{ background: 'none', border: 'none', color: '#EDEFF2', cursor: 'pointer' }}>
-                <i className="ti ti-arrow-left" style={{ fontSize: 20 }} aria-hidden="true"></i>
-              </button>
+              <button aria-label="Voltar" onClick={() => setScreen('producao')} style={{ background: 'none', border: 'none', color: '#EDEFF2', cursor: 'pointer' }}><i className="ti ti-arrow-left" style={{ fontSize: 20 }} aria-hidden="true"></i></button>
+              <img src={LOGO_SRC} alt="Logo Hao Moto Electric Motors" style={{ width: 26, height: 26, borderRadius: '50%', objectFit: 'cover' }} />
               <h1 style={h1}>Registros</h1>
             </div>
-            <button onClick={exportarExcel} disabled={registros.length === 0} style={{ background: '#D97B2A', border: 'none', borderRadius: 8, color: '#1F1300', fontSize: 12, fontWeight: 700, padding: '8px 10px', cursor: registros.length ? 'pointer' : 'not-allowed', opacity: registros.length ? 1 : 0.5 }}>
-              <i className="ti ti-download" style={{ fontSize: 14, verticalAlign: '-2px', marginRight: 4 }} aria-hidden="true"></i>Excel
-            </button>
+            <button onClick={exportarExcel} disabled={registros.length === 0} style={{ background: '#D97B2A', border: 'none', borderRadius: 8, color: '#1F1300', fontSize: 12, fontWeight: 700, padding: '8px 10px', cursor: registros.length ? 'pointer' : 'not-allowed', opacity: registros.length ? 1 : 0.5 }}><i className="ti ti-download" style={{ fontSize: 14, verticalAlign: '-2px', marginRight: 4 }} aria-hidden="true"></i>Excel</button>
           </div>
-
           {loadingList && <p style={{ color: '#8FA3B8', fontSize: 13 }}>Carregando...</p>}
           {!loadingList && registros.length === 0 && <p style={{ color: '#8FA3B8', fontSize: 13 }}>Nenhum apontamento salvo ainda.</p>}
-
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 420, overflowY: 'auto' }}>
             {registros.map((r) => (
               <div key={r.id} className="row-in" style={{ background: '#2A3542', border: '1px solid #3A4756', borderRadius: 10, padding: '10px 12px' }}>
@@ -613,13 +1350,12 @@ export default function App() {
                   <span style={{ fontSize: 11, color: '#8FA3B8' }}>{r.data ? new Date(r.data + 'T00:00:00').toLocaleDateString('pt-BR') : ''} {r.created_at ? new Date(r.created_at).toLocaleTimeString('pt-BR') : ''}</span>
                 </div>
                 <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: '#B9C4CE', margin: '4px 0 0' }}>Motor {r.motor} · Chassi {r.chassi}</p>
-                <p style={{ fontSize: 12, color: '#8FA3B8', margin: '4px 0 0' }}>CD {r.cd_nome} · Montador {r.nome_montador}{r.tipo_servico && ` · ${r.tipo_servico}`}</p>
+                <p style={{ fontSize: 12, color: '#8FA3B8', margin: '4px 0 0' }}>CD {r.cd_nome} · Montador {r.nome_montador}{r.tipo_servico && ` · ${r.tipo_servico}`} · <span style={{ color: '#E8A33D' }}>{r.status || 'pendente'}</span></p>
                 {(r.hora_inicio || r.hora_fim) && <p style={{ fontSize: 12, color: '#8FA3B8', margin: '2px 0 0' }}><i className="ti ti-clock" style={{ fontSize: 12, verticalAlign: '-2px', marginRight: 4 }} aria-hidden="true"></i>{r.hora_inicio || '--:--'} às {r.hora_fim || '--:--'}</p>}
                 {r.anomalia && <p style={{ fontSize: 12, color: '#E8B08A', margin: '6px 0 0' }}><i className="ti ti-alert-triangle" style={{ fontSize: 13, verticalAlign: '-2px', marginRight: 4 }} aria-hidden="true"></i>{r.anomalia}</p>}
               </div>
             ))}
           </div>
-
           <button type="button" onClick={() => setScreen('producao')} style={{ ...ghostBtn, marginTop: 16 }} className="btn-live ghost-live">Voltar</button>
         </div>
       )}
