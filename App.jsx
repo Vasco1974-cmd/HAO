@@ -408,7 +408,7 @@ export default function App() {
     setInspecaoRegistros(items);
     const iniciais = {};
     items.forEach((r) => {
-      iniciais[r.id] = { anomalia: r.anomalia || '', statusEscolhido: '', inspetor: r.inspetor_qualidade || '', checklist: r.checklist || { numeroBateria: '', respostas: {} } };
+      iniciais[r.id] = { anomalia: r.anomalia || '', falhaMontagem: r.falha_montagem || '', statusEscolhido: '', inspetor: r.inspetor_qualidade || '', checklist: r.checklist || { numeroBateria: '', respostas: {} } };
     });
     setEdicoesInspecao(iniciais);
     setLoadingInspecao(false);
@@ -420,7 +420,7 @@ export default function App() {
     if (!edicao || !edicao.statusEscolhido) { setErro('Selecione Aprovado ou Manutenção antes de salvar.'); return; }
     if (!edicao.inspetor || !edicao.inspetor.trim()) { setErro('Informe o nome do Inspetor da Qualidade (CD) antes de salvar.'); return; }
     const { error } = await supabase.from('apontamentos').update({
-      anomalia: edicao.anomalia, status: edicao.statusEscolhido, inspetor_qualidade: edicao.inspetor, checklist: edicao.checklist || null,
+      anomalia: edicao.anomalia, falha_montagem: edicao.falhaMontagem, status: edicao.statusEscolhido, inspetor_qualidade: edicao.inspetor, checklist: edicao.checklist || null,
     }).eq('id', id);
     if (error) { setErro('Não foi possível salvar: ' + error.message); return; }
     setInspecaoRegistros((prev) => prev.filter((r) => r.id !== id));
@@ -952,8 +952,10 @@ export default function App() {
                     </div>
                     <label style={{ ...label, marginTop: 10 }}>Inspetor da Qualidade (CD)</label>
                     <input style={input} className="field-live" value={edicoesInspecao[r.id]?.inspetor ?? ''} onChange={(e) => setEdicoesInspecao((prev) => ({ ...prev, [r.id]: { ...prev[r.id], inspetor: e.target.value.toUpperCase() } }))} placeholder="Nome do inspetor" />
-                    <label style={{ ...label, marginTop: 10 }}>Anotações e anomalias</label>
+                    <label style={{ ...label, marginTop: 10 }}>Anomalias</label>
                     <textarea style={{ ...input, minHeight: 50, resize: 'vertical', fontSize: 13 }} className="field-live" value={edicoesInspecao[r.id]?.anomalia ?? ''} onChange={(e) => setEdicoesInspecao((prev) => ({ ...prev, [r.id]: { ...prev[r.id], anomalia: e.target.value.toUpperCase() } }))} placeholder="Sem anomalias" />
+                    <label style={{ ...label, marginTop: 10 }}>Falha de Montagem</label>
+                    <textarea style={{ ...input, minHeight: 50, resize: 'vertical', fontSize: 13 }} className="field-live" value={edicoesInspecao[r.id]?.falhaMontagem ?? ''} onChange={(e) => setEdicoesInspecao((prev) => ({ ...prev, [r.id]: { ...prev[r.id], falhaMontagem: e.target.value.toUpperCase() } }))} placeholder="Sem falhas de montagem" />
                     <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
                       <select style={{ ...input, flex: 1 }} className="field-live" value={edicoesInspecao[r.id]?.statusEscolhido ?? ''} onChange={(e) => setEdicoesInspecao((prev) => ({ ...prev, [r.id]: { ...prev[r.id], statusEscolhido: e.target.value } }))}>
                         <option value="">Selecionar...</option>
