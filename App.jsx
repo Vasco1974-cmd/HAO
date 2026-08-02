@@ -380,7 +380,7 @@ export default function App() {
     </table>
     <div class="rodape-doc">
       <span><strong>Gestão da Qualidade</strong></span>
-      <span style="text-align:right;">Página 1 de 1 &nbsp;•&nbsp; Revisão: 01 &nbsp;•&nbsp; Data: ${dataHoje}</span>
+      <span style="text-align:right;">Página 1 de 1 &nbsp;·&nbsp; Revisão: 01 &nbsp;·&nbsp; Data: ${dataHoje}</span>
     </div>
   </div>
   <div class="assinaturas">
@@ -904,7 +904,7 @@ export default function App() {
           <div style={{ textAlign: 'center', marginBottom: 20 }}>
             <img src={LOGO_SRC} alt="Logo Hao Moto Electric Motors" className="logo-glow" style={{ width: 56, height: 56, borderRadius: '50%', objectFit: 'cover' }} />
             <h1 style={{ ...h1, marginTop: 10 }}>Página inicial</h1>
-            <p style={{ color: '#8FA3B8', fontSize: 12, margin: '4px 0 0' }}>{perfil?.email} {perfil?.funcao && `• ${perfil.funcao}`} {perfil?.role === 'admin' && <span style={{ color: '#E8A33D' }}>• administrador</span>}</p>
+            <p style={{ color: '#8FA3B8', fontSize: 12, margin: '4px 0 0' }}>{perfil?.email} {perfil?.funcao && `· ${perfil.funcao}`} {perfil?.role === 'admin' && <span style={{ color: '#E8A33D' }}>· administrador</span>}</p>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             <button type="button" onClick={() => setScreen('producao')} style={{ ...primaryBtn, marginTop: 0 }} className="btn-live"><i className="ti ti-clipboard-list" style={{ fontSize: 16, verticalAlign: '-3px', marginRight: 6 }} aria-hidden="true"></i>Apontamento</button>
@@ -942,9 +942,9 @@ export default function App() {
                   <div key={r.id} className="row-in" style={{ background: '#2A3542', border: '1px solid #3A4756', borderRadius: 10, padding: '12px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
                       <div>
-                        <p style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 16, fontWeight: 700, margin: 0 }}>{r.modelo} • {r.cor}</p>
-                        <p style={{ fontSize: 12, color: '#B9C4CE', margin: '4px 0 0' }}>CD {r.cd_nome} • {r.tipo_servico} • {r.nome_montador}</p>
-                        <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: '#B9C4CE', margin: '4px 0 0' }}>Motor {r.motor} • Chassi {r.chassi}</p>
+                        <p style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 16, fontWeight: 700, margin: 0 }}>{r.modelo} · {r.cor}</p>
+                        <p style={{ fontSize: 12, color: '#B9C4CE', margin: '4px 0 0' }}>CD {r.cd_nome} · {r.tipo_servico} · {r.nome_montador}</p>
+                        <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: '#B9C4CE', margin: '4px 0 0' }}>Motor {r.motor} · Chassi {r.chassi}</p>
                       </div>
                       <button type="button" onClick={() => handleAbrirChecklist(r.id)} style={{ background: checklistCompleto(edicoesInspecao[r.id]) ? '#2F4D3A' : 'none', border: '1px solid #4C8C5C', color: checklistCompleto(edicoesInspecao[r.id]) ? '#CFEFDB' : '#7CC98C', borderRadius: 6, fontSize: 11, padding: '5px 8px', cursor: 'pointer', whiteSpace: 'nowrap' }} className="btn-live">
                         {checklistCompleto(edicoesInspecao[r.id]) ? '✓ Check List' : 'Check List'}
@@ -1050,9 +1050,9 @@ export default function App() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 14, maxHeight: 480, overflowY: 'auto' }}>
                 {listaFiltrada.map((r) => (
                   <div key={r.id} className="row-in" style={{ background: '#2A3542', border: '1px solid #3A4756', borderRadius: 10, padding: '12px' }}>
-                    <p style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 16, fontWeight: 700, margin: 0 }}>{r.modelo} • {r.cor}</p>
-                    <p style={{ fontSize: 12, color: '#B9C4CE', margin: '4px 0 0' }}>CD {r.cd_nome} • {r.tipo_servico} • {r.nome_montador}</p>
-                    <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: '#B9C4CE', margin: '4px 0 0' }}>Motor {r.motor} • Chassi {r.chassi}</p>
+                    <p style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 16, fontWeight: 700, margin: 0 }}>{r.modelo} · {r.cor}</p>
+                    <p style={{ fontSize: 12, color: '#B9C4CE', margin: '4px 0 0' }}>CD {r.cd_nome} · {r.tipo_servico} · {r.nome_montador}</p>
+                    <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: '#B9C4CE', margin: '4px 0 0' }}>Motor {r.motor} · Chassi {r.chassi}</p>
                     <label style={{ ...label, marginTop: 10 }}>Anotações e anomalias (o que foi consertado)</label>
                     <textarea style={{ ...input, minHeight: 50, resize: 'vertical', fontSize: 13 }} className="field-live" value={edicoesManutencao[r.id]?.anomalia ?? ''} onChange={(e) => setEdicoesManutencao((prev) => ({ ...prev, [r.id]: { anomalia: e.target.value.toUpperCase() } }))} placeholder="Descreva o que foi feito" />
                     <button type="button" onClick={() => handleEnviarInspecao(r.id)} style={{ ...primaryBtn, marginTop: 10, fontSize: 14 }} className="btn-live">Enviar para Inspeção</button>
@@ -1237,7 +1237,7 @@ export default function App() {
             {itensDoPedido.length === 0 && <p style={{ color: '#8FA3B8', fontSize: 12 }}>Nenhum equipamento neste pedido.</p>}
             {itensDoPedido.map((r) => (
               <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#2A3542', border: '1px solid #3A4756', borderRadius: 8, padding: '8px 10px', fontSize: 12 }}>
-                <span>{r.modelo} • {r.cor} • Motor {r.motor} • Chassi {r.chassi}</span>
+                <span>{r.modelo} · {r.cor} · Motor {r.motor} · Chassi {r.chassi}</span>
                 <button type="button" onClick={() => handleRemoverItemRevisao(r.id)} style={{ background: 'none', border: '1px solid #5A3730', color: '#E8927A', borderRadius: 6, fontSize: 11, padding: '4px 8px', cursor: 'pointer' }}>Remover</button>
               </div>
             ))}
@@ -1247,7 +1247,7 @@ export default function App() {
             {itensDisponiveisRevisao.length === 0 && <p style={{ color: '#8FA3B8', fontSize: 12 }}>Nenhum outro equipamento aprovado disponível.</p>}
             {itensDisponiveisRevisao.map((r) => (
               <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#2A3542', border: '1px solid #3A4756', borderRadius: 8, padding: '8px 10px', fontSize: 12 }}>
-                <span>{r.modelo} • {r.cor} • Motor {r.motor} • Chassi {r.chassi}</span>
+                <span>{r.modelo} · {r.cor} · Motor {r.motor} · Chassi {r.chassi}</span>
                 <button type="button" onClick={() => handleAdicionarItemRevisao(r.id)} style={{ background: 'none', border: '1px solid #4C8C5C', color: '#7CC98C', borderRadius: 6, fontSize: 11, padding: '4px 8px', cursor: 'pointer' }}>Incluir</button>
               </div>
             ))}
@@ -1268,13 +1268,13 @@ export default function App() {
           <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: '#E8A33D', fontWeight: 700, margin: '0 0 16px 34px' }}>Ordem de entrega: {pedidoCarregado.numero}</p>
           <div style={{ background: '#2A3542', border: '1px solid #3A4756', borderRadius: 10, padding: 12, fontSize: 13 }}>
             <p style={{ margin: 0 }}><strong>Motorista:</strong> {formExpedicao.motorista}</p>
-            <p style={{ margin: '4px 0 0' }}><strong>CPF:</strong> {formExpedicao.cpf} • <strong>Placa:</strong> {formExpedicao.placa}</p>
+            <p style={{ margin: '4px 0 0' }}><strong>CPF:</strong> {formExpedicao.cpf} · <strong>Placa:</strong> {formExpedicao.placa}</p>
             <p style={{ margin: '4px 0 0' }}><strong>Cliente:</strong> {formExpedicao.cliente}</p>
             <p style={{ margin: '4px 0 0' }}><strong>Destino:</strong> {formExpedicao.destino}</p>
           </div>
           <p style={{ ...label, marginTop: 16 }}>Equipamentos ({itensDoPedido.length})</p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 4, maxHeight: 200, overflowY: 'auto' }}>
-            {itensDoPedido.map((r) => (<div key={r.id} style={{ background: '#2A3542', border: '1px solid #3A4756', borderRadius: 8, padding: '8px 10px', fontSize: 12 }}>{r.modelo} • {r.cor} • Motor {r.motor} • Chassi {r.chassi}</div>))}
+            {itensDoPedido.map((r) => (<div key={r.id} style={{ background: '#2A3542', border: '1px solid #3A4756', borderRadius: 8, padding: '8px 10px', fontSize: 12 }}>{r.modelo} · {r.cor} · Motor {r.motor} · Chassi {r.chassi}</div>))}
           </div>
           <label style={{ ...label, marginTop: 16 }}>Número da nota fiscal</label>
           <input style={mono} className="field-live" value={notaFiscal} onChange={(e) => setNotaFiscal(e.target.value.toUpperCase())} placeholder="Ex: 000123456" onKeyDown={(e) => { if (e.key === 'Enter') handleSalvarAprovacaoComNotaFiscal(); }} />
@@ -1298,7 +1298,7 @@ export default function App() {
               {perfil?.role === 'admin' && (<button onClick={() => { loadRegistros(); setScreen('lista'); }} style={{ background: 'none', border: '1px solid #3A4756', borderRadius: 8, color: '#B9C4CE', fontSize: 12, padding: '6px 10px', cursor: 'pointer' }}><i className="ti ti-list" style={{ fontSize: 14, verticalAlign: '-2px', marginRight: 4 }} aria-hidden="true"></i>Registros</button>)}
             </div>
           </div>
-          <p style={{ color: '#8FA3B8', fontSize: 12, margin: '0 0 4px' }}>Logado como {perfil?.email} {perfil?.role === 'admin' && <span style={{ color: '#E8A33D' }}>• administrador</span>}</p>
+          <p style={{ color: '#8FA3B8', fontSize: 12, margin: '0 0 4px' }}>Logado como {perfil?.email} {perfil?.role === 'admin' && <span style={{ color: '#E8A33D' }}>· administrador</span>}</p>
           <label style={label}>CD nome</label>
           <input style={input} className="field-live" value={form.cdNome} onChange={(e) => setForm({ ...form, cdNome: e.target.value.toUpperCase() })} placeholder="Ex: CD001" />
           <label style={label}>Nome montador</label>
@@ -1348,11 +1348,11 @@ export default function App() {
             {registros.map((r) => (
               <div key={r.id} className="row-in" style={{ background: '#2A3542', border: '1px solid #3A4756', borderRadius: 10, padding: '10px 12px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 16, fontWeight: 700 }}>{r.modelo} • {r.cor}</span>
+                  <span style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 16, fontWeight: 700 }}>{r.modelo} · {r.cor}</span>
                   <span style={{ fontSize: 11, color: '#8FA3B8' }}>{r.data ? new Date(r.data + 'T00:00:00').toLocaleDateString('pt-BR') : ''} {r.created_at ? new Date(r.created_at).toLocaleTimeString('pt-BR') : ''}</span>
                 </div>
-                <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: '#B9C4CE', margin: '4px 0 0' }}>Motor {r.motor} • Chassi {r.chassi}</p>
-                <p style={{ fontSize: 12, color: '#8FA3B8', margin: '4px 0 0' }}>CD {r.cd_nome} • Montador {r.nome_montador}{r.tipo_servico && ` • ${r.tipo_servico}`} • <span style={{ color: '#E8A33D' }}>{r.status || 'pendente'}</span></p>
+                <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: '#B9C4CE', margin: '4px 0 0' }}>Motor {r.motor} · Chassi {r.chassi}</p>
+                <p style={{ fontSize: 12, color: '#8FA3B8', margin: '4px 0 0' }}>CD {r.cd_nome} · Montador {r.nome_montador}{r.tipo_servico && ` · ${r.tipo_servico}`} · <span style={{ color: '#E8A33D' }}>{r.status || 'pendente'}</span></p>
                 {(r.hora_inicio || r.hora_fim) && <p style={{ fontSize: 12, color: '#8FA3B8', margin: '2px 0 0' }}><i className="ti ti-clock" style={{ fontSize: 12, verticalAlign: '-2px', marginRight: 4 }} aria-hidden="true"></i>{r.hora_inicio || '--:--'} às {r.hora_fim || '--:--'}</p>}
                 {r.anomalia && <p style={{ fontSize: 12, color: '#E8B08A', margin: '6px 0 0' }}><i className="ti ti-alert-triangle" style={{ fontSize: 13, verticalAlign: '-2px', marginRight: 4 }} aria-hidden="true"></i>{r.anomalia}</p>}
               </div>
