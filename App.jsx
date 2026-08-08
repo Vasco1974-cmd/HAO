@@ -6,6 +6,16 @@ const LOGO_SRC = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAARkAAAETCAIAAACN
 
 const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;700&family=Inter:wght@400;500&family=JetBrains+Mono:wght@500&display=swap');`;
 
+function useIsDesktop() {
+  const [isDesktop, setIsDesktop] = useState(typeof window !== 'undefined' && window.innerWidth >= 900);
+  useEffect(() => {
+    const onResize = () => setIsDesktop(window.innerWidth >= 900);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+  return isDesktop;
+}
+
 const LIVE_CSS = `
 @keyframes glowPulse { 0%,100% { box-shadow: 0 0 0 0 rgba(232,163,61,0.45); } 50% { box-shadow: 0 0 0 16px rgba(232,163,61,0); } }
 @keyframes fadeSlideIn { from { opacity: 0; transform: translateY(10px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
@@ -76,6 +86,7 @@ export default function App() {
   const [filtroCdInspecao, setFiltroCdInspecao] = useState('');
   const [edicoesInspecao, setEdicoesInspecao] = useState({});
   const [checklistItemId, setChecklistItemId] = useState(null);
+  const [selectedInspecaoId, setSelectedInspecaoId] = useState(null);
 
   const [manutencaoRegistros, setManutencaoRegistros] = useState([]);
   const [loadingManutencao, setLoadingManutencao] = useState(false);
@@ -95,6 +106,15 @@ export default function App() {
   const [itensDoPedido, setItensDoPedido] = useState([]);
   const [itensDisponiveisRevisao, setItensDisponiveisRevisao] = useState([]);
   const [notaFiscal, setNotaFiscal] = useState('');
+
+  const [cadastros, setCadastros] = useState({ cd_nome: [], modelo: [], nome_montador: [], nome_inspetor: [] });
+  const [loadingCadastros, setLoadingCadastros] = useState(false);
+  const [novoCdNome, setNovoCdNome] = useState('');
+  const [novoModelo, setNovoModelo] = useState('');
+  const [novoNomeMontador, setNovoNomeMontador] = useState('');
+  const [novoNomeInspetor, setNovoNomeInspetor] = useState('');
+  const [funcionariosPendentes, setFuncionariosPendentes] = useState([]);
+  const [loadingPendentes, setLoadingPendentes] = useState(false);
 
   useEffect(() => {
     if (toast) {
@@ -123,8 +143,9 @@ export default function App() {
     try {
       const { data, error } = await supabase.from('profiles').select('email, role, active, funcao').eq('id', s.user.id).single();
       if (error || !data) { setErro('Não foi possível carregar seu perfil.'); setScreen('login'); return; }
-      if (!data.active) { await supabase.auth.signOut(); setErro('Este cadastro foi desativado.'); setScreen('login'); return; }
+      if (!data.active) { await supabase.auth.signOut(); setErro('Seu cadastro ainda não foi aprovado por um administrador. Aguarde a liberação para poder fazer login.'); setScreen('login'); return; }
       setPerfil(data);
+      loadCadastros();
       setScreen('menu');
     } catch (err) {
       setErro('Erro ao carregar perfil: ' + (err?.message || String(err)));
@@ -149,7 +170,7 @@ export default function App() {
     if (!funcao.trim()) { setErro('Informe a função do funcionário.'); return; }
     const { error } = await supabase.auth.signUp({ email: email.trim().toLowerCase(), password: senha, options: { data: { funcao: funcao.trim() } } });
     if (error) { setErro('Não foi possível cadastrar: ' + error.message); return; }
-    setToast('Cadastro criado. Faça login.');
+    setToast('Cadastro criado. Aguarde um administrador aprovar seu acesso antes de fazer login.');
     setSenha(''); setSenha2(''); setFuncao('');
     setScreen('login');
   }
@@ -226,6 +247,55 @@ export default function App() {
     setLoadingList(false);
   }
 
+  async function loadCadastros() {
+    setLoadingCadastros(true);
+    const { data, error } = await supabase.from('cadastros').select('*').order('valor', { ascending: true });
+    if (error) { setLoadingCadastros(false); return; }
+    const agrupado = { cd_nome: [], modelo: [], nome_montador: [], nome_inspetor: [] };
+    (data || []).forEach((c) => { if (agrupado[c.tipo]) agrupado[c.tipo].push(c.valor); });
+    setCadastros(agrupado);
+    setLoadingCadastros(false);
+  }
+
+  async function loadFuncionariosPendentes() {
+    setLoadingPendentes(true);
+    const { data, error } = await supabase.from('profiles').select('email, funcao, created_at').eq('active', false).order('created_at', { ascending: true });
+    setFuncionariosPendentes(error ? [] : data || []);
+    setLoadingPendentes(false);
+  }
+
+  async function handleAprovarFuncionario(emailAlvo) {
+    setErro('');
+    const { data: ok, error } = await supabase.rpc('aprovar_funcionario', { email_alvo: emailAlvo });
+    if (error || !ok) { setErro('Não foi possível aprovar: ' + (error?.message || 'tente novamente.')); return; }
+    setFuncionariosPendentes((prev) => prev.filter((f) => f.email !== emailAlvo));
+    setToast(`${emailAlvo} aprovado — já pode fazer login.`);
+  }
+
+  async function handleSalvarCadastro() {
+    setErro('');
+    const novos = [
+      { tipo: 'cd_nome', valor: novoCdNome.trim().toUpperCase() },
+      { tipo: 'modelo', valor: novoModelo.trim().toUpperCase() },
+      { tipo: 'nome_montador', valor: novoNomeMontador.trim().toUpperCase() },
+      { tipo: 'nome_inspetor', valor: novoNomeInspetor.trim().toUpperCase() },
+    ].filter((n) => n.valor);
+    if (novos.length === 0) { setErro('Preencha ao menos um campo para cadastrar.'); return; }
+    const { error } = await supabase.from('cadastros').upsert(novos, { onConflict: 'tipo,valor', ignoreDuplicates: true });
+    if (error) { setErro('Não foi possível salvar: ' + error.message); return; }
+    setNovoCdNome(''); setNovoModelo(''); setNovoNomeMontador(''); setNovoNomeInspetor('');
+    await loadCadastros();
+    setToast('Cadastro salvo.');
+  }
+
+  async function handleExcluirCadastroItem(tipo, valor) {
+    if (!window.confirm(`Excluir "${valor}" do cadastro?`)) return;
+    const { error } = await supabase.from('cadastros').delete().eq('tipo', tipo).eq('valor', valor);
+    if (error) { setErro('Não foi possível excluir: ' + error.message); return; }
+    await loadCadastros();
+    setToast('Item excluído do cadastro.');
+  }
+
   async function handleSalvar() {
     setErro('');
     if (!form.cdNome || !form.nomeMontador || !form.tipoServico || !form.modelo || !form.cor || !form.motor || !form.chassi) {
@@ -253,8 +323,13 @@ export default function App() {
     setScreen('login');
   }
 
-  function exportarExcel() {
-    const linhas = registros.map((r) => ({
+  async function exportarExcel() {
+    setErro('');
+    const { data, error } = await supabase.from('apontamentos').select('*').order('created_at', { ascending: false });
+    if (error) { setErro('Não foi possível gerar o relatório: ' + error.message); return; }
+    const lista = data || [];
+    if (lista.length === 0) { setToast('Nenhum apontamento registrado ainda.'); return; }
+    const linhas = lista.map((r) => ({
       'Data': r.data ? new Date(r.data + 'T00:00:00').toLocaleDateString('pt-BR') : '',
       'Hora do registro': r.created_at ? new Date(r.created_at).toLocaleTimeString('pt-BR') : '',
       'Usuário': r.usuario_email, 'CD nome': r.cd_nome, 'Nome montador': r.nome_montador, 'Serviço': r.tipo_servico,
@@ -266,6 +341,7 @@ export default function App() {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Apontamentos');
     XLSX.writeFile(wb, `apontamentos_producao_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    setToast(`Relatório baixado: ${lista.length} apontamento(s).`);
   }
 
   function checklistCompleto(edicao) {
@@ -315,7 +391,7 @@ export default function App() {
 <html lang="pt-BR"><head><meta charset="utf-8">
 <title>Check List de Liberação — ${item.chassi}</title>
 <style>
-  @page { size: portrait; margin: 14mm; }
+  @page { size: A4 portrait; margin: 14mm; }
   * { box-sizing: border-box; }
   body { font-family: 'Helvetica Neue', Arial, sans-serif; color: #1F2933; margin: 0; padding: 0; font-size: 10.5px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .documento { border: 1px solid #C7CDD3; border-radius: 8px; overflow: hidden; }
@@ -387,18 +463,16 @@ export default function App() {
     <div>Assinatura<span class="cargo">Inspetor CD</span></div>
     <div>Assinatura<span class="cargo">Recebedor Responsável Loja</span></div>
   </div>
-  <div class="rodape-acao"><button onclick="window.print()">Imprimir / Salvar como PDF</button></div>
 </body></html>`;
 
-    const blob = new Blob([html], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `checklist_${item.chassi}.html`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    const printWindow = window.open('', '_blank', 'width=900,height=1000');
+    if (!printWindow) { setErro('Não foi possível abrir a janela de impressão. Verifique se o navegador está bloqueando pop-ups para este site.'); return; }
+    printWindow.document.write(html);
+    printWindow.document.close();
+    printWindow.onload = () => {
+      printWindow.focus();
+      printWindow.print();
+    };
   }
 
   async function loadInspecao() {
@@ -425,6 +499,25 @@ export default function App() {
     if (error) { setErro('Não foi possível salvar: ' + error.message); return; }
     setInspecaoRegistros((prev) => prev.filter((r) => r.id !== id));
     setToast(edicao.statusEscolhido === 'aprovado' ? 'Enviado para Expedição.' : 'Enviado para Manutenção.');
+    setSelectedInspecaoId(null);
+    setScreen('inspecaoLista');
+  }
+
+  async function handleExcluirInspecaoItem(id) {
+    setErro('');
+    if (!window.confirm('Tem certeza que deseja excluir este equipamento da listagem de inspeção? Esta ação não pode ser desfeita.')) return;
+    const { error } = await supabase.from('apontamentos').delete().eq('id', id);
+    if (error) { setErro('Não foi possível excluir: ' + error.message); return; }
+    setInspecaoRegistros((prev) => prev.filter((r) => r.id !== id));
+    setEdicoesInspecao((prev) => { const next = { ...prev }; delete next[id]; return next; });
+    if (selectedInspecaoId === id) { setSelectedInspecaoId(null); setScreen('inspecaoLista'); }
+    setToast('Registro excluído.');
+  }
+
+  function handleSelecionarInspecao(id) {
+    setErro('');
+    setSelectedInspecaoId(id);
+    setScreen('inspecao');
   }
 
   async function loadManutencao() {
@@ -433,19 +526,22 @@ export default function App() {
     const items = error ? [] : (data || []);
     setManutencaoRegistros(items);
     const iniciais = {};
-    items.forEach((r) => { iniciais[r.id] = { anomalia: r.anomalia || '' }; });
+    items.forEach((r) => { iniciais[r.id] = { anomalia: r.anomalia || '', falhaMontagem: r.falha_montagem || '', servicoExecutado: '' }; });
     setEdicoesManutencao(iniciais);
     setLoadingManutencao(false);
   }
 
   async function handleEnviarInspecao(id) {
     setErro('');
+    const edicao = edicoesManutencao[id] || {};
+    if (!edicao.servicoExecutado || !edicao.servicoExecutado.trim()) { setErro('Descreva o serviço executado antes de enviar para Inspeção.'); return; }
     const { data: atual, error: erroSelect } = await supabase.from('apontamentos').select('historico_manutencao').eq('id', id).single();
     if (erroSelect || !atual) { setErro('Registro não encontrado.'); return; }
-    const anomaliaAtualizada = edicoesManutencao[id]?.anomalia ?? '';
+    const anomaliaAtualizada = edicao.anomalia ?? '';
+    const falhaMontagemAtualizada = edicao.falhaMontagem ?? '';
     const agora = new Date();
-    const novoHistorico = [...(atual.historico_manutencao || []), { data: agora.toISOString().slice(0, 10), dataHora: agora.toISOString(), anomalia: anomaliaAtualizada, usuarioEmail: perfil?.email || '' }];
-    const { error } = await supabase.from('apontamentos').update({ anomalia: anomaliaAtualizada, status: 'pendente', historico_manutencao: novoHistorico }).eq('id', id);
+    const novoHistorico = [...(atual.historico_manutencao || []), { data: agora.toISOString().slice(0, 10), dataHora: agora.toISOString(), anomalia: anomaliaAtualizada, falhaMontagem: falhaMontagemAtualizada, servicoExecutado: edicao.servicoExecutado, usuarioEmail: perfil?.email || '' }];
+    const { error } = await supabase.from('apontamentos').update({ anomalia: anomaliaAtualizada, falha_montagem: falhaMontagemAtualizada, status: 'pendente', historico_manutencao: novoHistorico }).eq('id', id);
     if (error) { setErro('Não foi possível salvar: ' + error.message); return; }
     setManutencaoRegistros((prev) => prev.filter((r) => r.id !== id));
     setToast('Enviado de volta para Inspeção.');
@@ -461,17 +557,45 @@ export default function App() {
       (registro.historico_manutencao || []).filter((h) => h.data === hoje).forEach((h) => {
         linhas.push({
           'Hora': new Date(h.dataHora).toLocaleTimeString('pt-BR'), 'CD nome': registro.cd_nome, 'Modelo': registro.modelo, 'Cor': registro.cor,
-          'Motor': registro.motor, 'Chassi': registro.chassi, 'Descrição do conserto': h.anomalia || '', 'Responsável': h.usuarioEmail || '',
+          'Motor': registro.motor, 'Chassi': registro.chassi, 'Anomalia': h.anomalia || '', 'Falha de Montagem': h.falhaMontagem || '', 'Serviço executado': h.servicoExecutado || '', 'Responsável': h.usuarioEmail || '',
         });
       });
     });
     if (linhas.length === 0) { setToast('Nenhuma manutenção concluída hoje ainda.'); return; }
     const ws = XLSX.utils.json_to_sheet(linhas);
-    ws['!cols'] = [{ wch: 10 }, { wch: 12 }, { wch: 18 }, { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 34 }, { wch: 22 }];
+    ws['!cols'] = [{ wch: 10 }, { wch: 12 }, { wch: 18 }, { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 28 }, { wch: 28 }, { wch: 34 }, { wch: 22 }];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Manutenções do dia');
     XLSX.writeFile(wb, `manutencoes_dia_${hoje}.xlsx`);
     setToast(`Relatório baixado: ${linhas.length} manutenção(ões) hoje.`);
+  }
+
+  async function handleRelatorioInspecao() {
+    setErro('');
+    const { data, error } = await supabase.from('apontamentos').select('*').not('inspetor_qualidade', 'is', null);
+    if (error) { setErro('Não foi possível gerar o relatório: ' + error.message); return; }
+    const registrosInspecionados = data || [];
+    if (registrosInspecionados.length === 0) { setToast('Nenhum equipamento inspecionado ainda.'); return; }
+    const porCd = {};
+    registrosInspecionados.forEach((r) => {
+      const cd = r.cd_nome || '—';
+      if (!porCd[cd]) porCd[cd] = { aprovados: 0, manutencao: 0 };
+      if (r.status === 'manutencao') porCd[cd].manutencao += 1; else porCd[cd].aprovados += 1;
+    });
+    const linhasResumo = Object.entries(porCd).map(([cd, d]) => ({ 'CD nome': cd, 'Total inspecionado': d.aprovados + d.manutencao, 'Aprovados': d.aprovados, 'Enviados p/ Manutenção': d.manutencao }));
+    const linhasDetalhe = registrosInspecionados.map((r) => ({
+      'CD nome': r.cd_nome, 'Modelo': r.modelo, 'Cor': r.cor, 'Motor': r.motor, 'Chassi': r.chassi,
+      'Inspetor da Qualidade (CD)': r.inspetor_qualidade || '', 'Resultado': r.status === 'manutencao' ? 'Manutenção' : 'Aprovado', 'Anomalia': r.anomalia || '', 'Falha de Montagem': r.falha_montagem || '',
+    }));
+    const wb = XLSX.utils.book_new();
+    const wsResumo = XLSX.utils.json_to_sheet(linhasResumo);
+    wsResumo['!cols'] = [{ wch: 14 }, { wch: 18 }, { wch: 12 }, { wch: 22 }];
+    XLSX.utils.book_append_sheet(wb, wsResumo, 'Resumo por CD');
+    const wsDetalhe = XLSX.utils.json_to_sheet(linhasDetalhe);
+    wsDetalhe['!cols'] = [{ wch: 12 }, { wch: 18 }, { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 22 }, { wch: 14 }, { wch: 28 }, { wch: 28 }];
+    XLSX.utils.book_append_sheet(wb, wsDetalhe, 'Detalhe');
+    XLSX.writeFile(wb, `relatorio_inspecao_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    setToast(`Relatório baixado: ${registrosInspecionados.length} equipamento(s) inspecionado(s).`);
   }
 
   async function loadExpedicao() {
@@ -510,9 +634,10 @@ export default function App() {
         <td>${r.modelo}</td><td>${r.cor}</td><td>${r.motor}</td><td>${r.chassi}</td>
       </tr>`).join('');
     const campo = (rotulo, valor) => `<div class="campo"><span class="rotulo">${rotulo}</span><span class="valor">${valor || '—'}</span></div>`;
+    const campoBranco = (rotulo) => `<div class="campo"><span class="rotulo">${rotulo}</span><span class="valor valor-manual">&nbsp;</span></div>`;
     const avisoPendente = statusPedido === 'pendente'
       ? `<div class="aviso-pendente">PEDIDO PENDENTE DE APROVAÇÃO — não gera baixa no estoque</div>`
-      : `<div class="aviso-aprovado">PEDIDO APROVADO — baixa no estoque confirmada${notaFiscalDoc ? ` — NF ${notaFiscalDoc}` : ''}</div>`;
+      : `<div class="aviso-aprovado">PEDIDO APROVADO — baixa no estoque confirmada</div>`;
 
     const html = `<!doctype html>
 <html lang="pt-BR"><head><meta charset="utf-8">
@@ -520,11 +645,11 @@ export default function App() {
 <style>
   @page { size: portrait; margin: 18mm; }
   * { box-sizing: border-box; }
-  body { font-family: 'Georgia', serif; color: #1F2933; margin: 0; padding: 36px; background: #fff; }
+  body { font-family: Arial, sans-serif; color: #1F2933; margin: 0; padding: 36px; background: #fff; }
   .cabecalho { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-bottom: 18px; border-bottom: 3px solid #1F2933; margin-bottom: 16px; }
   .cabecalho-esquerda { display: flex; align-items: center; gap: 16px; }
   .cabecalho img { width: 58px; height: 58px; border-radius: 50%; object-fit: cover; }
-  .cabecalho h1 { font-size: 22px; margin: 0; letter-spacing: 0.03em; }
+  .cabecalho h1 { font-family: Arial, sans-serif; font-size: 22px; margin: 0; letter-spacing: 0.03em; }
   .numero-ordem { font-family: Arial, sans-serif; font-size: 13px; font-weight: bold; color: #B9762D; text-align: right; }
   .aviso-pendente { font-family: Arial, sans-serif; font-size: 11px; font-weight: bold; letter-spacing: 0.04em; text-transform: uppercase; color: #A15C1E; background: #FBEBD8; border: 1px solid #E8A33D; border-radius: 6px; padding: 8px 12px; margin-bottom: 16px; text-align: center; }
   .aviso-aprovado { font-family: Arial, sans-serif; font-size: 11px; font-weight: bold; letter-spacing: 0.04em; text-transform: uppercase; color: #2F5D3A; background: #E6F2E8; border: 1px solid #4C8C5C; border-radius: 6px; padding: 8px 12px; margin-bottom: 16px; text-align: center; }
@@ -533,10 +658,11 @@ export default function App() {
   .campo { padding: 10px 14px; border-right: 1px solid #D8D3CB; border-bottom: 1px solid #D8D3CB; }
   .campo:nth-child(3n) { border-right: none; }
   .rotulo { display: block; font-family: Arial, sans-serif; font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; color: #8A8578; margin-bottom: 3px; }
-  .valor { display: block; font-size: 14px; font-weight: bold; word-break: break-word; }
+  .valor { display: block; font-family: Arial, sans-serif; font-size: 14px; font-weight: bold; word-break: break-word; }
+  .valor-manual { border-bottom: 1px solid #B9B2A6; min-height: 16px; }
   table { width: 100%; border-collapse: collapse; margin-top: 6px; font-family: Arial, sans-serif; font-size: 13px; }
   th { background: #1F2933; color: #fff; padding: 8px 10px; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; }
-  td { padding: 8px 10px; border-bottom: 1px solid #E4E0D8; }
+  td { padding: 8px 10px; border-bottom: 1px solid #E4E0D8; font-family: Arial, sans-serif; }
   .assinaturas { display: grid; grid-template-columns: 1fr 1fr; gap: 60px; margin-top: 130px; font-family: Arial, sans-serif; }
   .assinaturas div { border-top: 1px solid #1F2933; padding-top: 8px; text-align: center; font-size: 12px; color: #4A5560; }
   .rodape-acao { margin-top: 30px; text-align: center; }
@@ -562,7 +688,7 @@ export default function App() {
     ${campo('Cliente', cliente)}
     ${campo('Endereço', endereco)}
     ${campo('Destino', destino)}
-    ${notaFiscalDoc ? campo('Nota Fiscal', notaFiscalDoc) : ''}
+    ${campoBranco('Nota Fiscal (preencher à caneta)')}
   </div>
   <p class="secao-titulo">Equipamentos</p>
   <table>
@@ -695,20 +821,19 @@ export default function App() {
 
   async function handleSalvarAprovacaoComNotaFiscal() {
     setErro('');
-    if (!notaFiscal.trim()) { setErro('Informe o número da nota fiscal.'); return; }
     if (!pedidoCarregado) return;
     const agora = new Date().toISOString();
-    const expedicaoInfo = { ...formExpedicao, notaFiscal: notaFiscal.trim(), dataHoraExpedicao: agora, numeroOrdem: pedidoCarregado.numero };
+    const expedicaoInfo = { ...formExpedicao, dataHoraExpedicao: agora, numeroOrdem: pedidoCarregado.numero };
     for (const item of itensDoPedido) {
       await supabase.from('apontamentos').update({ status: 'expedido', expedicao_info: expedicaoInfo }).eq('id', item.id);
     }
-    await supabase.from('pedidos').update({ status: 'aprovado', aprovado_em: agora, nota_fiscal: notaFiscal.trim() }).eq('numero', pedidoCarregado.numero);
+    await supabase.from('pedidos').update({ status: 'aprovado', aprovado_em: agora }).eq('numero', pedidoCarregado.numero);
 
-    baixarRomaneioHtml({ numero: pedidoCarregado.numero, statusPedido: 'aprovado', itens: itensDoPedido, dadosForm: formExpedicao, notaFiscal: notaFiscal.trim() });
+    baixarRomaneioHtml({ numero: pedidoCarregado.numero, statusPedido: 'aprovado', itens: itensDoPedido, dadosForm: formExpedicao });
 
     const linhasExpedido = itensDoPedido.map((r) => ({
       'CD nome': r.cd_nome, 'Modelo': r.modelo, 'Cor': r.cor, 'Motor': r.motor, 'Chassi': r.chassi, 'Status': 'EXPEDIDO',
-      'Ordem': pedidoCarregado.numero, 'Nota fiscal': notaFiscal.trim(), 'Data': formExpedicao.data, 'Motorista': formExpedicao.motorista,
+      'Ordem': pedidoCarregado.numero, 'Data': formExpedicao.data, 'Motorista': formExpedicao.motorista,
       'CPF': formExpedicao.cpf, 'Placa': formExpedicao.placa, 'Chave Pix': formExpedicao.chavePix, 'Cliente': formExpedicao.cliente,
       'Endereço': formExpedicao.endereco, 'Destino': formExpedicao.destino,
     }));
@@ -747,7 +872,9 @@ export default function App() {
     setToast(`Backup baixado: ${linhasApontamentos.length} apontamentos, ${linhasUsuarios.length} funcionários.`);
   }
 
-  const panelStyle = { maxWidth: 380, margin: '0 auto', background: '#1F2933', borderRadius: 18, padding: '28px 22px', color: '#EDEFF2', fontFamily: "'Inter', sans-serif", boxShadow: '0 1px 0 rgba(255,255,255,0.04) inset' };
+  const isDesktop = useIsDesktop();
+  const mw = (base) => (isDesktop ? Math.round(Math.min(base * 1.7, 1200)) : base);
+  const panelStyle = { maxWidth: mw(380), margin: '0 auto', background: '#1F2933', borderRadius: 18, padding: '28px 22px', color: '#EDEFF2', fontFamily: "'Inter', sans-serif", boxShadow: '0 1px 0 rgba(255,255,255,0.04) inset' };
   const label = { fontSize: 12, letterSpacing: '0.03em', color: '#8FA3B8', display: 'block', marginBottom: 4, marginTop: 12, textTransform: 'uppercase' };
   const input = { width: '100%', background: '#2A3542', border: '1px solid #3A4756', borderRadius: 8, padding: '10px 12px', color: '#EDEFF2', fontFamily: "'Inter', sans-serif", fontSize: 14 };
   const mono = { ...input, fontFamily: "'JetBrains Mono', monospace" };
@@ -907,10 +1034,13 @@ export default function App() {
             <p style={{ color: '#8FA3B8', fontSize: 12, margin: '4px 0 0' }}>{perfil?.email} {perfil?.funcao && `· ${perfil.funcao}`} {perfil?.role === 'admin' && <span style={{ color: '#E8A33D' }}>· administrador</span>}</p>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <button type="button" onClick={() => setScreen('producao')} style={{ ...primaryBtn, marginTop: 0 }} className="btn-live"><i className="ti ti-clipboard-list" style={{ fontSize: 16, verticalAlign: '-3px', marginRight: 6 }} aria-hidden="true"></i>Apontamento</button>
-            <button type="button" onClick={() => { setFiltroCdInspecao(''); loadInspecao(); setScreen('inspecao'); }} style={{ ...primaryBtn, marginTop: 0 }} className="btn-live"><i className="ti ti-search" style={{ fontSize: 15, verticalAlign: '-3px', marginRight: 6 }} aria-hidden="true"></i>Inspeção</button>
+            <button type="button" onClick={() => { loadCadastros(); setScreen('producao'); }} style={{ ...primaryBtn, marginTop: 0 }} className="btn-live"><i className="ti ti-clipboard-list" style={{ fontSize: 16, verticalAlign: '-3px', marginRight: 6 }} aria-hidden="true"></i>Apontamento</button>
+            <button type="button" onClick={() => { setFiltroCdInspecao(''); setSelectedInspecaoId(null); loadInspecao(); loadCadastros(); setScreen('inspecaoLista'); }} style={{ ...primaryBtn, marginTop: 0 }} className="btn-live"><i className="ti ti-search" style={{ fontSize: 15, verticalAlign: '-3px', marginRight: 6 }} aria-hidden="true"></i>Inspeção</button>
             <button type="button" onClick={() => { setFiltroCdManutencao(''); loadManutencao(); setScreen('manutencao'); }} style={{ ...primaryBtn, marginTop: 0 }} className="btn-live"><i className="ti ti-tool" style={{ fontSize: 15, verticalAlign: '-3px', marginRight: 6 }} aria-hidden="true"></i>Manutenção</button>
             <button type="button" onClick={() => { setErro(''); setScreen('expedicaoMenu'); }} style={{ ...primaryBtn, marginTop: 0 }} className="btn-live"><i className="ti ti-truck" style={{ fontSize: 15, verticalAlign: '-3px', marginRight: 6 }} aria-hidden="true"></i>Expedição</button>
+            {perfil?.role === 'admin' && (
+              <button type="button" onClick={() => { setErro(''); loadCadastros(); loadFuncionariosPendentes(); setScreen('cadastroConfig'); }} style={{ ...primaryBtn, marginTop: 0 }} className="btn-live"><i className="ti ti-list-details" style={{ fontSize: 15, verticalAlign: '-3px', marginRight: 6 }} aria-hidden="true"></i>Cadastro</button>
+            )}
           </div>
           {perfil?.role === 'admin' && (
             <button type="button" onClick={handleBackupCompleto} style={{ ...ghostBtn, marginTop: 16, borderColor: '#E8A33D', color: '#E8A33D' }} className="btn-live ghost-live"><i className="ti ti-database-export" style={{ fontSize: 15, verticalAlign: '-3px', marginRight: 6 }} aria-hidden="true"></i>Backup completo (Excel)</button>
@@ -919,15 +1049,87 @@ export default function App() {
         </div>
       )}
 
-      {screen === 'inspecao' && (
-        <div style={{ ...panelStyle, maxWidth: 460 }} className="screen-enter">
+      {screen === 'cadastroConfig' && (
+        <div style={{ ...panelStyle, maxWidth: mw(640) }} className="screen-enter">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <button aria-label="Voltar" onClick={() => setScreen('menu')} style={{ background: 'none', border: 'none', color: '#EDEFF2', cursor: 'pointer' }}><i className="ti ti-arrow-left" style={{ fontSize: 20 }} aria-hidden="true"></i></button>
+              <img src={LOGO_SRC} alt="Logo Hao Moto Electric Motors" style={{ width: 26, height: 26, borderRadius: '50%', objectFit: 'cover' }} />
+              <h1 style={h1}>Cadastro</h1>
+            </div>
+            <button type="button" onClick={() => setScreen('menu')} style={{ background: 'none', border: '1px solid #3A4756', borderRadius: 8, color: '#B9C4CE', fontSize: 12, padding: '6px 10px', cursor: 'pointer' }} className="btn-live ghost-live">Sair</button>
+          </div>
+
+          <p style={{ ...label, marginTop: 0 }}>Novos funcionários aguardando aprovação {funcionariosPendentes.length > 0 && `(${funcionariosPendentes.length})`}</p>
+          {loadingPendentes && <p style={{ color: '#8FA3B8', fontSize: 13 }}>Carregando...</p>}
+          {!loadingPendentes && funcionariosPendentes.length === 0 && <p style={{ color: '#8FA3B8', fontSize: 12 }}>Nenhum cadastro pendente no momento.</p>}
+          {!loadingPendentes && funcionariosPendentes.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 20 }}>
+              {funcionariosPendentes.map((f) => (
+                <div key={f.email} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#2A3542', border: '1px solid #E8A33D', borderRadius: 8, padding: '8px 10px' }}>
+                  <div>
+                    <p style={{ margin: 0, fontSize: 13 }}>{f.email}</p>
+                    <p style={{ margin: '2px 0 0', fontSize: 11, color: '#8FA3B8' }}>{f.funcao || 'Função não informada'}</p>
+                  </div>
+                  <button type="button" onClick={() => handleAprovarFuncionario(f.email)} style={{ background: '#2F4D3A', border: '1px solid #4C8C5C', color: '#CFEFDB', borderRadius: 6, fontSize: 11, padding: '6px 10px', cursor: 'pointer' }} className="btn-live">Aprovar</button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <p style={{ ...label, marginTop: 4 }}>Opções dos formulários</p>
+          <p style={{ color: '#8FA3B8', fontSize: 12, margin: '0 0 4px' }}>Esses valores viram opções de escolha nos formulários de Apontamento e Inspeção. Preencha um ou mais campos e clique em Salvar.</p>
+          {erro && <p style={{ color: '#E8927A', fontSize: 12, marginTop: 10 }}>{erro}</p>}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 10 }}>
+            <div><label style={label}>CD nome</label><input style={input} className="field-live" value={novoCdNome} onChange={(e) => setNovoCdNome(e.target.value.toUpperCase())} placeholder="Ex: CD001" /></div>
+            <div><label style={label}>Modelo</label><input style={input} className="field-live" value={novoModelo} onChange={(e) => setNovoModelo(e.target.value.toUpperCase())} placeholder="Ex: CONQUEST" /></div>
+            <div><label style={label}>Nome montador</label><input style={input} className="field-live" value={novoNomeMontador} onChange={(e) => setNovoNomeMontador(e.target.value.toUpperCase())} placeholder="Nome do montador" /></div>
+            <div><label style={label}>Nome inspetor</label><input style={input} className="field-live" value={novoNomeInspetor} onChange={(e) => setNovoNomeInspetor(e.target.value.toUpperCase())} placeholder="Nome do inspetor" /></div>
+          </div>
+          <button type="button" onClick={handleSalvarCadastro} style={primaryBtn} className="btn-live">Salvar</button>
+
+          {loadingCadastros && <p style={{ color: '#8FA3B8', fontSize: 13, marginTop: 20 }}>Carregando cadastros...</p>}
+          {!loadingCadastros && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginTop: 24 }}>
+              {[
+                { chave: 'cd_nome', titulo: 'CD nome' },
+                { chave: 'modelo', titulo: 'Modelo' },
+                { chave: 'nome_montador', titulo: 'Nome montador' },
+                { chave: 'nome_inspetor', titulo: 'Nome inspetor' },
+              ].map(({ chave, titulo }) => (
+                <div key={chave}>
+                  <p style={{ ...label, marginTop: 0 }}>{titulo} ({cadastros[chave].length})</p>
+                  {cadastros[chave].length === 0 ? (
+                    <p style={{ color: '#8FA3B8', fontSize: 12 }}>Nenhum cadastrado ainda.</p>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 220, overflowY: 'auto' }}>
+                      {cadastros[chave].map((valor) => (
+                        <div key={valor} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#2A3542', border: '1px solid #3A4756', borderRadius: 6, padding: '6px 8px', fontSize: 12 }}>
+                          <span>{valor}</span>
+                          <button type="button" onClick={() => handleExcluirCadastroItem(chave, valor)} style={{ background: 'none', border: 'none', color: '#E8927A', cursor: 'pointer', fontSize: 11 }} className="btn-live">Excluir</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {screen === 'inspecaoLista' && (
+        <div style={{ ...panelStyle, maxWidth: mw(720) }} className="screen-enter">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <button aria-label="Voltar" onClick={() => setScreen('menu')} style={{ background: 'none', border: 'none', color: '#EDEFF2', cursor: 'pointer' }}><i className="ti ti-arrow-left" style={{ fontSize: 20 }} aria-hidden="true"></i></button>
               <img src={LOGO_SRC} alt="Logo Hao Moto Electric Motors" style={{ width: 26, height: 26, borderRadius: '50%', objectFit: 'cover' }} />
               <h1 style={h1}>Inspeção</h1>
             </div>
-            <button type="button" onClick={() => setScreen('menu')} style={{ background: 'none', border: '1px solid #3A4756', borderRadius: 8, color: '#B9C4CE', fontSize: 12, padding: '6px 10px', cursor: 'pointer' }} className="btn-live ghost-live">Sair</button>
+            <div style={{ display: 'flex', gap: 8 }}>
+              {perfil?.role === 'admin' && <button type="button" onClick={handleRelatorioInspecao} style={{ background: 'none', border: '1px solid #E8A33D', borderRadius: 8, color: '#E8A33D', fontSize: 12, padding: '6px 10px', cursor: 'pointer' }} className="btn-live ghost-live"><i className="ti ti-file-spreadsheet" style={{ fontSize: 14, verticalAlign: '-2px', marginRight: 4 }} aria-hidden="true"></i>Relatório Excel</button>}
+              <button type="button" onClick={() => setScreen('menu')} style={{ background: 'none', border: '1px solid #3A4756', borderRadius: 8, color: '#B9C4CE', fontSize: 12, padding: '6px 10px', cursor: 'pointer' }} className="btn-live ghost-live">Sair</button>
+            </div>
           </div>
           <label style={label}>Filtrar por CD nome</label>
           <input style={input} className="field-live" value={filtroCdInspecao} onChange={(e) => setFiltroCdInspecao(e.target.value.toUpperCase())} placeholder="Ex: CD001 (deixe vazio para ver todos)" />
@@ -937,41 +1139,88 @@ export default function App() {
             const listaFiltrada = inspecaoRegistros.filter((r) => !filtroCdInspecao.trim() || (r.cd_nome || '').includes(filtroCdInspecao.trim()));
             if (listaFiltrada.length === 0) return <p style={{ color: '#8FA3B8', fontSize: 13, marginTop: 14 }}>Nenhum equipamento pendente de inspeção.</p>;
             return (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 14, maxHeight: 480, overflowY: 'auto' }}>
-                {listaFiltrada.map((r) => (
-                  <div key={r.id} className="row-in" style={{ background: '#2A3542', border: '1px solid #3A4756', borderRadius: 10, padding: '12px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-                      <div>
-                        <p style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 16, fontWeight: 700, margin: 0 }}>{r.modelo} · {r.cor}</p>
-                        <p style={{ fontSize: 12, color: '#B9C4CE', margin: '4px 0 0' }}>CD {r.cd_nome} · {r.tipo_servico} · {r.nome_montador}</p>
-                        <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: '#B9C4CE', margin: '4px 0 0' }}>Motor {r.motor} · Chassi {r.chassi}</p>
-                      </div>
-                      <button type="button" onClick={() => handleAbrirChecklist(r.id)} style={{ background: checklistCompleto(edicoesInspecao[r.id]) ? '#2F4D3A' : 'none', border: '1px solid #4C8C5C', color: checklistCompleto(edicoesInspecao[r.id]) ? '#CFEFDB' : '#7CC98C', borderRadius: 6, fontSize: 11, padding: '5px 8px', cursor: 'pointer', whiteSpace: 'nowrap' }} className="btn-live">
-                        {checklistCompleto(edicoesInspecao[r.id]) ? '✓ Check List' : 'Check List'}
-                      </button>
-                    </div>
-                    <label style={{ ...label, marginTop: 10 }}>Inspetor da Qualidade (CD)</label>
-                    <input style={input} className="field-live" value={edicoesInspecao[r.id]?.inspetor ?? ''} onChange={(e) => setEdicoesInspecao((prev) => ({ ...prev, [r.id]: { ...prev[r.id], inspetor: e.target.value.toUpperCase() } }))} placeholder="Nome do inspetor" />
-                    <label style={{ ...label, marginTop: 10 }}>Anomalias</label>
-                    <textarea style={{ ...input, minHeight: 50, resize: 'vertical', fontSize: 13 }} className="field-live" value={edicoesInspecao[r.id]?.anomalia ?? ''} onChange={(e) => setEdicoesInspecao((prev) => ({ ...prev, [r.id]: { ...prev[r.id], anomalia: e.target.value.toUpperCase() } }))} placeholder="Sem anomalias" />
-                    <label style={{ ...label, marginTop: 10 }}>Falha de Montagem</label>
-                    <textarea style={{ ...input, minHeight: 50, resize: 'vertical', fontSize: 13 }} className="field-live" value={edicoesInspecao[r.id]?.falhaMontagem ?? ''} onChange={(e) => setEdicoesInspecao((prev) => ({ ...prev, [r.id]: { ...prev[r.id], falhaMontagem: e.target.value.toUpperCase() } }))} placeholder="Sem falhas de montagem" />
-                    <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-                      <select style={{ ...input, flex: 1 }} className="field-live" value={edicoesInspecao[r.id]?.statusEscolhido ?? ''} onChange={(e) => setEdicoesInspecao((prev) => ({ ...prev, [r.id]: { ...prev[r.id], statusEscolhido: e.target.value } }))}>
-                        <option value="">Selecionar...</option>
-                        <option value="aprovado">Aprovado</option>
-                        <option value="manutencao">Manutenção</option>
-                      </select>
-                      <button type="button" onClick={() => handleSalvarInspecaoItem(r.id)} style={{ ...primaryBtn, marginTop: 0, width: 'auto', padding: '0 16px', fontSize: 13 }} className="btn-live">Salvar</button>
-                    </div>
-                  </div>
-                ))}
+              <div style={{ marginTop: 14, maxHeight: 520, overflowY: 'auto', overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                  <thead>
+                    <tr>
+                      {['CD Nome', 'Modelo', 'Cor', 'Motor', 'Chassi', ''].map((titulo, idx) => (
+                        <th key={idx} style={{ textAlign: 'left', color: '#8FA3B8', textTransform: 'uppercase', letterSpacing: '0.03em', fontSize: 10, padding: '6px 8px', borderBottom: '1px solid #3A4756', whiteSpace: 'nowrap' }}>{titulo}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {listaFiltrada.map((r) => (
+                      <tr key={r.id} className="row-in" style={{ borderBottom: '1px solid #3A4756' }}>
+                        <td style={{ padding: '8px', fontFamily: "'JetBrains Mono', monospace", whiteSpace: 'nowrap' }}>{r.cd_nome}</td>
+                        <td style={{ padding: '8px', whiteSpace: 'nowrap' }}>{r.modelo}</td>
+                        <td style={{ padding: '8px', whiteSpace: 'nowrap' }}>{r.cor}</td>
+                        <td style={{ padding: '8px', fontFamily: "'JetBrains Mono', monospace", whiteSpace: 'nowrap' }}>{r.motor}</td>
+                        <td style={{ padding: '8px', fontFamily: "'JetBrains Mono', monospace", whiteSpace: 'nowrap' }}>{r.chassi}</td>
+                        <td style={{ padding: '8px', whiteSpace: 'nowrap' }}>
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            <button type="button" onClick={() => handleExcluirInspecaoItem(r.id)} style={{ background: 'none', border: '1px solid #A32D2D', color: '#E8927A', borderRadius: 6, fontSize: 11, padding: '5px 8px', cursor: 'pointer' }} className="btn-live ghost-live">Excluir</button>
+                            <button type="button" onClick={() => handleSelecionarInspecao(r.id)} style={{ ...primaryBtn, marginTop: 0, width: 'auto', padding: '5px 10px', fontSize: 11 }} className="btn-live">Selecionar</button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             );
           })()}
           <button type="button" onClick={() => setScreen('menu')} style={{ ...ghostBtn, marginTop: 16 }} className="btn-live ghost-live">Voltar à página inicial</button>
         </div>
       )}
+
+      {screen === 'inspecao' && selectedInspecaoId && (() => {
+        const r = inspecaoRegistros.find((item) => item.id === selectedInspecaoId);
+        if (!r) { setScreen('inspecaoLista'); return null; }
+        return (
+          <div style={{ ...panelStyle, maxWidth: mw(460) }} className="screen-enter">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <button aria-label="Voltar" onClick={() => { setSelectedInspecaoId(null); setScreen('inspecaoLista'); }} style={{ background: 'none', border: 'none', color: '#EDEFF2', cursor: 'pointer' }}><i className="ti ti-arrow-left" style={{ fontSize: 20 }} aria-hidden="true"></i></button>
+                <img src={LOGO_SRC} alt="Logo Hao Moto Electric Motors" style={{ width: 26, height: 26, borderRadius: '50%', objectFit: 'cover' }} />
+                <h1 style={h1}>Inspeção</h1>
+              </div>
+              <button type="button" onClick={() => setScreen('menu')} style={{ background: 'none', border: '1px solid #3A4756', borderRadius: 8, color: '#B9C4CE', fontSize: 12, padding: '6px 10px', cursor: 'pointer' }} className="btn-live ghost-live">Sair</button>
+            </div>
+            {erro && <p style={{ color: '#E8927A', fontSize: 12, marginTop: 0, marginBottom: 10 }}>{erro}</p>}
+            <div key={r.id} className="row-in" style={{ background: '#2A3542', border: '1px solid #3A4756', borderRadius: 10, padding: '12px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                <div>
+                  <p style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 16, fontWeight: 700, margin: 0 }}>{r.modelo} · {r.cor}</p>
+                  <p style={{ fontSize: 12, color: '#B9C4CE', margin: '4px 0 0' }}>CD {r.cd_nome} · {r.tipo_servico} · {r.nome_montador}</p>
+                  <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: '#B9C4CE', margin: '4px 0 0' }}>Motor {r.motor} · Chassi {r.chassi}</p>
+                </div>
+                <button type="button" onClick={() => handleAbrirChecklist(r.id)} style={{ background: checklistCompleto(edicoesInspecao[r.id]) ? '#2F4D3A' : 'none', border: '1px solid #4C8C5C', color: checklistCompleto(edicoesInspecao[r.id]) ? '#CFEFDB' : '#7CC98C', borderRadius: 6, fontSize: 11, padding: '5px 8px', cursor: 'pointer', whiteSpace: 'nowrap' }} className="btn-live">
+                  {checklistCompleto(edicoesInspecao[r.id]) ? '✓ Check List' : 'Check List'}
+                </button>
+              </div>
+              <label style={{ ...label, marginTop: 10 }}>Inspetor da Qualidade (CD)</label>
+              <select style={input} className="field-live" value={edicoesInspecao[r.id]?.inspetor ?? ''} onChange={(e) => setEdicoesInspecao((prev) => ({ ...prev, [r.id]: { ...prev[r.id], inspetor: e.target.value } }))}>
+                <option value="">Selecionar...</option>
+                {cadastros.nome_inspetor.map((v) => <option key={v} value={v}>{v}</option>)}
+              </select>
+              {cadastros.nome_inspetor.length === 0 && <p style={{ color: '#E8A33D', fontSize: 11, margin: '2px 0 0' }}>Nenhum inspetor cadastrado — peça a um administrador para cadastrar em "Cadastro".</p>}
+              <label style={{ ...label, marginTop: 10 }}>Anomalias</label>
+              <textarea style={{ ...input, minHeight: 50, resize: 'vertical', fontSize: 13 }} className="field-live" value={edicoesInspecao[r.id]?.anomalia ?? ''} onChange={(e) => setEdicoesInspecao((prev) => ({ ...prev, [r.id]: { ...prev[r.id], anomalia: e.target.value.toUpperCase() } }))} placeholder="Sem anomalias" />
+              <label style={{ ...label, marginTop: 10 }}>Falha de Montagem</label>
+              <textarea style={{ ...input, minHeight: 50, resize: 'vertical', fontSize: 13 }} className="field-live" value={edicoesInspecao[r.id]?.falhaMontagem ?? ''} onChange={(e) => setEdicoesInspecao((prev) => ({ ...prev, [r.id]: { ...prev[r.id], falhaMontagem: e.target.value.toUpperCase() } }))} placeholder="Sem falhas de montagem" />
+              <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                <select style={{ ...input, flex: 1 }} className="field-live" value={edicoesInspecao[r.id]?.statusEscolhido ?? ''} onChange={(e) => setEdicoesInspecao((prev) => ({ ...prev, [r.id]: { ...prev[r.id], statusEscolhido: e.target.value } }))}>
+                  <option value="">Selecionar...</option>
+                  <option value="aprovado">Aprovado</option>
+                  <option value="manutencao">Manutenção</option>
+                </select>
+                <button type="button" onClick={() => handleSalvarInspecaoItem(r.id)} style={{ ...primaryBtn, marginTop: 0, width: 'auto', padding: '0 16px', fontSize: 13 }} className="btn-live">Salvar</button>
+              </div>
+            </div>
+            <button type="button" onClick={() => { setSelectedInspecaoId(null); setScreen('inspecaoLista'); }} style={{ ...ghostBtn, marginTop: 16 }} className="btn-live ghost-live">Voltar à listagem</button>
+          </div>
+        );
+      })()}
 
       {screen === 'inspecaoChecklist' && checklistItemId && (() => {
         const item = inspecaoRegistros.find((r) => r.id === checklistItemId);
@@ -984,7 +1233,7 @@ export default function App() {
         };
         const categorias = [...new Set(CHECKLIST_ITENS.map((i) => i.categoria))];
         return (
-          <div style={{ ...panelStyle, maxWidth: 500 }} className="screen-enter">
+          <div style={{ ...panelStyle, maxWidth: mw(500) }} className="screen-enter">
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
               <button aria-label="Voltar" onClick={() => setScreen('inspecao')} style={{ background: 'none', border: 'none', color: '#EDEFF2', cursor: 'pointer' }}><i className="ti ti-arrow-left" style={{ fontSize: 20 }} aria-hidden="true"></i></button>
               <img src={LOGO_SRC} alt="Logo Hao Moto Electric Motors" style={{ width: 26, height: 26, borderRadius: '50%', objectFit: 'cover' }} />
@@ -1027,7 +1276,7 @@ export default function App() {
       })()}
 
       {screen === 'manutencao' && (
-        <div style={{ ...panelStyle, maxWidth: 460 }} className="screen-enter">
+        <div style={{ ...panelStyle, maxWidth: mw(460) }} className="screen-enter">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <button aria-label="Voltar" onClick={() => setScreen('menu')} style={{ background: 'none', border: 'none', color: '#EDEFF2', cursor: 'pointer' }}><i className="ti ti-arrow-left" style={{ fontSize: 20 }} aria-hidden="true"></i></button>
@@ -1035,7 +1284,7 @@ export default function App() {
               <h1 style={h1}>Manutenção</h1>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button type="button" onClick={handleRelatorioDiarioManutencao} style={{ background: 'none', border: '1px solid #E8A33D', borderRadius: 8, color: '#E8A33D', fontSize: 12, padding: '6px 10px', cursor: 'pointer' }} className="btn-live ghost-live"><i className="ti ti-file-spreadsheet" style={{ fontSize: 14, verticalAlign: '-2px', marginRight: 4 }} aria-hidden="true"></i>Relatório diário</button>
+              {perfil?.role === 'admin' && <button type="button" onClick={handleRelatorioDiarioManutencao} style={{ background: 'none', border: '1px solid #E8A33D', borderRadius: 8, color: '#E8A33D', fontSize: 12, padding: '6px 10px', cursor: 'pointer' }} className="btn-live ghost-live"><i className="ti ti-file-spreadsheet" style={{ fontSize: 14, verticalAlign: '-2px', marginRight: 4 }} aria-hidden="true"></i>Relatório diário</button>}
               <button type="button" onClick={() => setScreen('menu')} style={{ background: 'none', border: '1px solid #3A4756', borderRadius: 8, color: '#B9C4CE', fontSize: 12, padding: '6px 10px', cursor: 'pointer' }} className="btn-live ghost-live">Sair</button>
             </div>
           </div>
@@ -1053,8 +1302,12 @@ export default function App() {
                     <p style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 16, fontWeight: 700, margin: 0 }}>{r.modelo} · {r.cor}</p>
                     <p style={{ fontSize: 12, color: '#B9C4CE', margin: '4px 0 0' }}>CD {r.cd_nome} · {r.tipo_servico} · {r.nome_montador}</p>
                     <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: '#B9C4CE', margin: '4px 0 0' }}>Motor {r.motor} · Chassi {r.chassi}</p>
-                    <label style={{ ...label, marginTop: 10 }}>Anotações e anomalias (o que foi consertado)</label>
-                    <textarea style={{ ...input, minHeight: 50, resize: 'vertical', fontSize: 13 }} className="field-live" value={edicoesManutencao[r.id]?.anomalia ?? ''} onChange={(e) => setEdicoesManutencao((prev) => ({ ...prev, [r.id]: { anomalia: e.target.value.toUpperCase() } }))} placeholder="Descreva o que foi feito" />
+                    <label style={{ ...label, marginTop: 10 }}>Anotações e anomalias</label>
+                    <textarea style={{ ...input, minHeight: 50, resize: 'vertical', fontSize: 13 }} className="field-live" value={edicoesManutencao[r.id]?.anomalia ?? ''} onChange={(e) => setEdicoesManutencao((prev) => ({ ...prev, [r.id]: { ...prev[r.id], anomalia: e.target.value.toUpperCase() } }))} placeholder="Descreva a anomalia identificada" />
+                    <label style={{ ...label, marginTop: 10 }}>Falha de Montagem</label>
+                    <textarea style={{ ...input, minHeight: 50, resize: 'vertical', fontSize: 13 }} className="field-live" value={edicoesManutencao[r.id]?.falhaMontagem ?? ''} onChange={(e) => setEdicoesManutencao((prev) => ({ ...prev, [r.id]: { ...prev[r.id], falhaMontagem: e.target.value.toUpperCase() } }))} placeholder="Sem falhas de montagem" />
+                    <label style={{ ...label, marginTop: 10 }}>Serviço executado</label>
+                    <textarea style={{ ...input, minHeight: 50, resize: 'vertical', fontSize: 13 }} className="field-live" value={edicoesManutencao[r.id]?.servicoExecutado ?? ''} onChange={(e) => setEdicoesManutencao((prev) => ({ ...prev, [r.id]: { ...prev[r.id], servicoExecutado: e.target.value.toUpperCase() } }))} placeholder="Descreva o que foi consertado/executado" />
                     <button type="button" onClick={() => handleEnviarInspecao(r.id)} style={{ ...primaryBtn, marginTop: 10, fontSize: 14 }} className="btn-live">Enviar para Inspeção</button>
                   </div>
                 ))}
@@ -1084,7 +1337,7 @@ export default function App() {
       )}
 
       {screen === 'expedicao' && (
-        <div style={{ ...panelStyle, maxWidth: 520 }} className="screen-enter">
+        <div style={{ ...panelStyle, maxWidth: mw(520) }} className="screen-enter">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <button aria-label="Voltar" onClick={() => setScreen('expedicaoMenu')} style={{ background: 'none', border: 'none', color: '#EDEFF2', cursor: 'pointer' }}><i className="ti ti-arrow-left" style={{ fontSize: 20 }} aria-hidden="true"></i></button>
@@ -1131,7 +1384,7 @@ export default function App() {
       )}
 
       {screen === 'expedicaoFormulario' && (
-        <div style={{ ...panelStyle, maxWidth: 460 }} className="screen-enter">
+        <div style={{ ...panelStyle, maxWidth: mw(460) }} className="screen-enter">
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
             <button aria-label="Voltar" onClick={() => setScreen('expedicao')} style={{ background: 'none', border: 'none', color: '#EDEFF2', cursor: 'pointer' }}><i className="ti ti-arrow-left" style={{ fontSize: 20 }} aria-hidden="true"></i></button>
             <img src={LOGO_SRC} alt="Logo Hao Moto Electric Motors" style={{ width: 26, height: 26, borderRadius: '50%', objectFit: 'cover' }} />
@@ -1173,7 +1426,7 @@ export default function App() {
       )}
 
       {screen === 'expedicaoPedidosList' && (
-        <div style={{ ...panelStyle, maxWidth: 540 }} className="screen-enter">
+        <div style={{ ...panelStyle, maxWidth: mw(540) }} className="screen-enter">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <button aria-label="Voltar" onClick={() => setScreen('expedicaoMenu')} style={{ background: 'none', border: 'none', color: '#EDEFF2', cursor: 'pointer' }}><i className="ti ti-arrow-left" style={{ fontSize: 20 }} aria-hidden="true"></i></button>
@@ -1209,7 +1462,7 @@ export default function App() {
       )}
 
       {screen === 'expedicaoRevisarItens' && pedidoCarregado && (
-        <div style={{ ...panelStyle, maxWidth: 480 }} className="screen-enter">
+        <div style={{ ...panelStyle, maxWidth: mw(480) }} className="screen-enter">
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
             <button aria-label="Voltar" onClick={() => setScreen('expedicaoPedidosList')} style={{ background: 'none', border: 'none', color: '#EDEFF2', cursor: 'pointer' }}><i className="ti ti-arrow-left" style={{ fontSize: 20 }} aria-hidden="true"></i></button>
             <img src={LOGO_SRC} alt="Logo Hao Moto Electric Motors" style={{ width: 26, height: 26, borderRadius: '50%', objectFit: 'cover' }} />
@@ -1259,7 +1512,7 @@ export default function App() {
       )}
 
       {screen === 'expedicaoAprovarNotaFiscal' && pedidoCarregado && (
-        <div style={{ ...panelStyle, maxWidth: 460 }} className="screen-enter">
+        <div style={{ ...panelStyle, maxWidth: mw(460) }} className="screen-enter">
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
             <button aria-label="Voltar" onClick={() => setScreen('expedicaoPedidosList')} style={{ background: 'none', border: 'none', color: '#EDEFF2', cursor: 'pointer' }}><i className="ti ti-arrow-left" style={{ fontSize: 20 }} aria-hidden="true"></i></button>
             <img src={LOGO_SRC} alt="Logo Hao Moto Electric Motors" style={{ width: 26, height: 26, borderRadius: '50%', objectFit: 'cover' }} />
@@ -1272,13 +1525,11 @@ export default function App() {
             <p style={{ margin: '4px 0 0' }}><strong>Cliente:</strong> {formExpedicao.cliente}</p>
             <p style={{ margin: '4px 0 0' }}><strong>Destino:</strong> {formExpedicao.destino}</p>
           </div>
-          <p style={{ ...label, marginTop: 16 }}>Equipamentos ({itensDoPedido.length})</p>
+          <label style={{ ...label, marginTop: 16 }}>Equipamentos ({itensDoPedido.length})</label>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 4, maxHeight: 200, overflowY: 'auto' }}>
             {itensDoPedido.map((r) => (<div key={r.id} style={{ background: '#2A3542', border: '1px solid #3A4756', borderRadius: 8, padding: '8px 10px', fontSize: 12 }}>{r.modelo} · {r.cor} · Motor {r.motor} · Chassi {r.chassi}</div>))}
           </div>
-          <label style={{ ...label, marginTop: 16 }}>Número da nota fiscal</label>
-          <input style={mono} className="field-live" value={notaFiscal} onChange={(e) => setNotaFiscal(e.target.value.toUpperCase())} placeholder="Ex: 000123456" onKeyDown={(e) => { if (e.key === 'Enter') handleSalvarAprovacaoComNotaFiscal(); }} />
-          <p style={{ color: '#8FA3B8', fontSize: 12, marginTop: 10 }}>Ao salvar, o PDF final é gerado (com a nota fiscal) e o estoque é baixado — essa ação não pode ser desfeita.</p>
+          <p style={{ color: '#8FA3B8', fontSize: 12, marginTop: 10 }}>A nota fiscal não é mais digitada no sistema — o Romaneio em PDF tem uma linha em branco para preencher à caneta depois da impressão. Ao salvar, o PDF final é gerado e o estoque é baixado — essa ação não pode ser desfeita.</p>
           {erro && <p style={{ color: '#E8927A', fontSize: 12, marginTop: 10 }}>{erro}</p>}
           <button type="button" onClick={handleSalvarAprovacaoComNotaFiscal} style={{ ...primaryBtn, background: '#4C8C5C', color: '#F2FBF4' }} className="btn-live">Salvar</button>
           <button type="button" onClick={() => setScreen('expedicaoPedidosList')} style={{ ...ghostBtn, marginTop: 10 }} className="btn-live ghost-live">Cancelar</button>
@@ -1294,15 +1545,22 @@ export default function App() {
               <h1 style={h1}>Apontamento</h1>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
+              {perfil?.role === 'admin' && <button onClick={exportarExcel} style={{ background: 'none', border: '1px solid #4C8C5C', borderRadius: 8, color: '#7CC98C', fontSize: 12, padding: '6px 10px', cursor: 'pointer' }}><i className="ti ti-file-spreadsheet" style={{ fontSize: 14, verticalAlign: '-2px', marginRight: 4 }} aria-hidden="true"></i>Relatório Excel</button>}
               {perfil?.role === 'admin' && (<button onClick={() => { setEmailExcluir(''); setConfirmExcluir(''); setErro(''); setScreen('excluir'); }} style={{ background: 'none', border: '1px solid #3A4756', borderRadius: 8, color: '#B9C4CE', fontSize: 12, padding: '6px 10px', cursor: 'pointer' }}><i className="ti ti-user-off" style={{ fontSize: 14, verticalAlign: '-2px', marginRight: 4 }} aria-hidden="true"></i>Excluir</button>)}
               {perfil?.role === 'admin' && (<button onClick={() => { loadRegistros(); setScreen('lista'); }} style={{ background: 'none', border: '1px solid #3A4756', borderRadius: 8, color: '#B9C4CE', fontSize: 12, padding: '6px 10px', cursor: 'pointer' }}><i className="ti ti-list" style={{ fontSize: 14, verticalAlign: '-2px', marginRight: 4 }} aria-hidden="true"></i>Registros</button>)}
             </div>
           </div>
           <p style={{ color: '#8FA3B8', fontSize: 12, margin: '0 0 4px' }}>Logado como {perfil?.email} {perfil?.role === 'admin' && <span style={{ color: '#E8A33D' }}>· administrador</span>}</p>
           <label style={label}>CD nome</label>
-          <input style={input} className="field-live" value={form.cdNome} onChange={(e) => setForm({ ...form, cdNome: e.target.value.toUpperCase() })} placeholder="Ex: CD001" />
+          <select style={input} className="field-live" value={form.cdNome} onChange={(e) => setForm({ ...form, cdNome: e.target.value })}>
+            <option value="">Selecionar...</option>
+            {cadastros.cd_nome.map((v) => <option key={v} value={v}>{v}</option>)}
+          </select>
           <label style={label}>Nome montador</label>
-          <input style={input} className="field-live" value={form.nomeMontador} onChange={(e) => setForm({ ...form, nomeMontador: e.target.value.toUpperCase() })} placeholder="Nome do montador" />
+          <select style={input} className="field-live" value={form.nomeMontador} onChange={(e) => setForm({ ...form, nomeMontador: e.target.value })}>
+            <option value="">Selecionar...</option>
+            {cadastros.nome_montador.map((v) => <option key={v} value={v}>{v}</option>)}
+          </select>
           <label style={label}>Serviço</label>
           <select style={input} className="field-live" value={form.tipoServico} onChange={(e) => setForm({ ...form, tipoServico: e.target.value })}>
             <option value="">Selecionar...</option>
@@ -1310,7 +1568,13 @@ export default function App() {
             <option value="Manutenção">Manutenção</option>
           </select>
           <label style={label}>Modelo</label>
-          <input style={input} className="field-live" value={form.modelo} onChange={(e) => setForm({ ...form, modelo: e.target.value.toUpperCase() })} placeholder="Ex: XL-200" />
+          <select style={input} className="field-live" value={form.modelo} onChange={(e) => setForm({ ...form, modelo: e.target.value })}>
+            <option value="">Selecionar...</option>
+            {cadastros.modelo.map((v) => <option key={v} value={v}>{v}</option>)}
+          </select>
+          {cadastros.cd_nome.length === 0 || cadastros.modelo.length === 0 || cadastros.nome_montador.length === 0 ? (
+            <p style={{ color: '#E8A33D', fontSize: 11, margin: '2px 0 0' }}>Alguma lista está vazia — peça a um administrador para cadastrar em "Cadastro".</p>
+          ) : null}
           <label style={label}>Cor</label>
           <input style={input} className="field-live" value={form.cor} onChange={(e) => setForm({ ...form, cor: e.target.value.toUpperCase() })} placeholder="Ex: Prata" />
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
