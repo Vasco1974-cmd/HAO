@@ -702,15 +702,14 @@ export default function App() {
   <div class="rodape-acao"><button onclick="window.print()">Imprimir / Salvar como PDF</button></div>
 </body></html>`;
 
-    const blob = new Blob([html], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `romaneio_${numero}.html`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    const printWindow = window.open('', '_blank', 'width=900,height=1000');
+    if (!printWindow) { setErro('Não foi possível abrir a janela de impressão. Verifique se o navegador está bloqueando pop-ups para este site.'); return; }
+    printWindow.document.write(html);
+    printWindow.document.close();
+    printWindow.onload = () => {
+      printWindow.focus();
+      printWindow.print();
+    };
   }
 
   async function handleSalvarPedidoNovo() {
@@ -804,45 +803,36 @@ export default function App() {
     const cdNomes = [...new Set(itensDoPedido.map((i) => i.cd_nome).filter(Boolean))].join(', ');
     const { error } = await supabase.from('pedidos').update({ data, motorista, cpf, placa, chave_pix: chavePix, cliente, endereco, destino, cd_nomes: cdNomes }).eq('numero', pedidoCarregado.numero);
     if (error) { setErro('Não foi possível salvar as alterações: ' + error.message); return; }
-    setToast(`Pedido ${pedidoCarregado.numero} atualizado. Pronto para aprovar.`);
-    setPedidoCarregado({ ...pedidoCarregado, data, motorista, cpf, placa, chave_pix: chavePix, cliente, endereco, destino, cd_nomes: cdNomes });
-    setNotaFiscal('');
-    setScreen('expedicaoAprovarNotaFiscal');
+    setToast(`Pedido ${pedidoCarregado.numero} atualizado.`);
+    setScreen('expedicaoPedidosList');
+    loadPedidosPendentes();
   }
 
-  async function handleAbrirAprovarNotaFiscal(pedido) {
+  async function handleAprovarEImprimirPedido(pedido) {
     setErro('');
-    setPedidoCarregado(pedido);
-    setFormExpedicao({ data: pedido.data, motorista: pedido.motorista, cpf: pedido.cpf, placa: pedido.placa, chavePix: pedido.chave_pix, cliente: pedido.cliente, endereco: pedido.endereco, destino: pedido.destino });
-    setItensDoPedido(await carregarItensDoPedido(pedido));
-    setNotaFiscal('');
-    setScreen('expedicaoAprovarNotaFiscal');
-  }
-
-  async function handleSalvarAprovacaoComNotaFiscal() {
-    setErro('');
-    if (!pedidoCarregado) return;
+    const itens = await carregarItensDoPedido(pedido);
+    if (itens.length === 0) { setErro('Este pedido não tem equipamentos — não é possível aprovar.'); return; }
+    const dadosForm = { data: pedido.data, motorista: pedido.motorista, cpf: pedido.cpf, placa: pedido.placa, chavePix: pedido.chave_pix, cliente: pedido.cliente, endereco: pedido.endereco, destino: pedido.destino };
     const agora = new Date().toISOString();
-    const expedicaoInfo = { ...formExpedicao, dataHoraExpedicao: agora, numeroOrdem: pedidoCarregado.numero };
-    for (const item of itensDoPedido) {
+    const expedicaoInfo = { ...dadosForm, dataHoraExpedicao: agora, numeroOrdem: pedido.numero };
+    for (const item of itens) {
       await supabase.from('apontamentos').update({ status: 'expedido', expedicao_info: expedicaoInfo }).eq('id', item.id);
     }
-    await supabase.from('pedidos').update({ status: 'aprovado', aprovado_em: agora }).eq('numero', pedidoCarregado.numero);
+    await supabase.from('pedidos').update({ status: 'aprovado', aprovado_em: agora }).eq('numero', pedido.numero);
 
-    baixarRomaneioHtml({ numero: pedidoCarregado.numero, statusPedido: 'aprovado', itens: itensDoPedido, dadosForm: formExpedicao });
+    baixarRomaneioHtml({ numero: pedido.numero, statusPedido: 'aprovado', itens, dadosForm });
 
-    const linhasExpedido = itensDoPedido.map((r) => ({
+    const linhasExpedido = itens.map((r) => ({
       'CD nome': r.cd_nome, 'Modelo': r.modelo, 'Cor': r.cor, 'Motor': r.motor, 'Chassi': r.chassi, 'Status': 'EXPEDIDO',
-      'Ordem': pedidoCarregado.numero, 'Data': formExpedicao.data, 'Motorista': formExpedicao.motorista,
-      'CPF': formExpedicao.cpf, 'Placa': formExpedicao.placa, 'Chave Pix': formExpedicao.chavePix, 'Cliente': formExpedicao.cliente,
-      'Endereço': formExpedicao.endereco, 'Destino': formExpedicao.destino,
+      'Ordem': pedido.numero, 'Data': dadosForm.data, 'Motorista': dadosForm.motorista,
+      'CPF': dadosForm.cpf, 'Placa': dadosForm.placa, 'Chave Pix': dadosForm.chavePix, 'Cliente': dadosForm.cliente,
+      'Endereço': dadosForm.endereco, 'Destino': dadosForm.destino,
     }));
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(linhasExpedido), 'Expedido');
-    XLSX.writeFile(wb, `controle_expedicao_${pedidoCarregado.numero}.xlsx`);
+    XLSX.writeFile(wb, `controle_expedicao_${pedido.numero}.xlsx`);
 
-    setToast(`Pedido ${pedidoCarregado.numero} aprovado. Baixa no estoque confirmada.`);
-    setScreen('expedicaoPedidosList');
+    setToast(`Pedido ${pedido.numero} aprovado. Baixa no estoque confirmada.`);
     loadPedidosPendentes();
   }
 
@@ -1330,8 +1320,7 @@ export default function App() {
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             <button type="button" onClick={() => { setFiltroCdExpedicao(''); loadExpedicao(); setScreen('expedicao'); }} style={{ ...primaryBtn, marginTop: 0 }} className="btn-live">Gerar Pedido</button>
-            <button type="button" onClick={() => { loadPedidosPendentes(); setScreen('expedicaoPedidosList'); }} style={{ ...ghostBtn, marginTop: 0, borderColor: '#E8A33D', color: '#E8A33D' }} className="btn-live ghost-live">Revisar</button>
-            <button type="button" onClick={() => { loadPedidosPendentes(); setScreen('expedicaoPedidosList'); }} style={{ ...ghostBtn, marginTop: 0, borderColor: '#4C8C5C', color: '#7CC98C' }} className="btn-live ghost-live">Aprovar Pedido</button>
+            <button type="button" onClick={() => { loadPedidosPendentes(); setScreen('expedicaoPedidosList'); }} style={{ ...ghostBtn, marginTop: 0, borderColor: '#E8A33D', color: '#E8A33D' }} className="btn-live ghost-live">Revisar e Aprovar Pedido</button>
           </div>
         </div>
       )}
@@ -1452,7 +1441,7 @@ export default function App() {
                 <div style={{ display: 'flex', gap: 4 }}>
                   <button type="button" onClick={() => handleGerarPdfPedido(p)} style={{ background: 'none', border: '1px solid #3A4756', color: '#B9C4CE', borderRadius: 6, fontSize: 10, padding: '4px 6px', cursor: 'pointer' }}>Gerar PDF</button>
                   <button type="button" onClick={() => handleAlterarPedido(p)} style={{ background: 'none', border: '1px solid #E8A33D', color: '#E8A33D', borderRadius: 6, fontSize: 10, padding: '4px 6px', cursor: 'pointer' }}>Alterar</button>
-                  <button type="button" onClick={() => handleAbrirAprovarNotaFiscal(p)} style={{ background: 'none', border: '1px solid #4C8C5C', color: '#7CC98C', borderRadius: 6, fontSize: 10, padding: '4px 6px', cursor: 'pointer' }}>Aprovar</button>
+                  <button type="button" onClick={() => handleAprovarEImprimirPedido(p)} style={{ background: 'none', border: '1px solid #4C8C5C', color: '#7CC98C', borderRadius: 6, fontSize: 10, padding: '4px 6px', cursor: 'pointer' }}>Aprovar/Imprimir</button>
                 </div>
               </div>
             ))}
@@ -1507,31 +1496,6 @@ export default function App() {
           </div>
           {erro && <p style={{ color: '#E8927A', fontSize: 12, marginTop: 10 }}>{erro}</p>}
           <button type="button" onClick={handleSalvarRevisao} style={primaryBtn} className="btn-live">Salvar alterações</button>
-          <button type="button" onClick={() => setScreen('expedicaoPedidosList')} style={{ ...ghostBtn, marginTop: 10 }} className="btn-live ghost-live">Cancelar</button>
-        </div>
-      )}
-
-      {screen === 'expedicaoAprovarNotaFiscal' && pedidoCarregado && (
-        <div style={{ ...panelStyle, maxWidth: mw(460) }} className="screen-enter">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-            <button aria-label="Voltar" onClick={() => setScreen('expedicaoPedidosList')} style={{ background: 'none', border: 'none', color: '#EDEFF2', cursor: 'pointer' }}><i className="ti ti-arrow-left" style={{ fontSize: 20 }} aria-hidden="true"></i></button>
-            <img src={LOGO_SRC} alt="Logo Hao Moto Electric Motors" style={{ width: 26, height: 26, borderRadius: '50%', objectFit: 'cover' }} />
-            <h1 style={h1}>Aprovar pedido</h1>
-          </div>
-          <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: '#E8A33D', fontWeight: 700, margin: '0 0 16px 34px' }}>Ordem de entrega: {pedidoCarregado.numero}</p>
-          <div style={{ background: '#2A3542', border: '1px solid #3A4756', borderRadius: 10, padding: 12, fontSize: 13 }}>
-            <p style={{ margin: 0 }}><strong>Motorista:</strong> {formExpedicao.motorista}</p>
-            <p style={{ margin: '4px 0 0' }}><strong>CPF:</strong> {formExpedicao.cpf} · <strong>Placa:</strong> {formExpedicao.placa}</p>
-            <p style={{ margin: '4px 0 0' }}><strong>Cliente:</strong> {formExpedicao.cliente}</p>
-            <p style={{ margin: '4px 0 0' }}><strong>Destino:</strong> {formExpedicao.destino}</p>
-          </div>
-          <label style={{ ...label, marginTop: 16 }}>Equipamentos ({itensDoPedido.length})</label>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 4, maxHeight: 200, overflowY: 'auto' }}>
-            {itensDoPedido.map((r) => (<div key={r.id} style={{ background: '#2A3542', border: '1px solid #3A4756', borderRadius: 8, padding: '8px 10px', fontSize: 12 }}>{r.modelo} · {r.cor} · Motor {r.motor} · Chassi {r.chassi}</div>))}
-          </div>
-          <p style={{ color: '#8FA3B8', fontSize: 12, marginTop: 10 }}>A nota fiscal não é mais digitada no sistema — o Romaneio em PDF tem uma linha em branco para preencher à caneta depois da impressão. Ao salvar, o PDF final é gerado e o estoque é baixado — essa ação não pode ser desfeita.</p>
-          {erro && <p style={{ color: '#E8927A', fontSize: 12, marginTop: 10 }}>{erro}</p>}
-          <button type="button" onClick={handleSalvarAprovacaoComNotaFiscal} style={{ ...primaryBtn, background: '#4C8C5C', color: '#F2FBF4' }} className="btn-live">Salvar</button>
           <button type="button" onClick={() => setScreen('expedicaoPedidosList')} style={{ ...ghostBtn, marginTop: 10 }} className="btn-live ghost-live">Cancelar</button>
         </div>
       )}
