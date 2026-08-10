@@ -113,6 +113,12 @@ export default function App() {
   const [novoModelo, setNovoModelo] = useState('');
   const [novoNomeMontador, setNovoNomeMontador] = useState('');
   const [novoNomeInspetor, setNovoNomeInspetor] = useState('');
+  const [novoModeloPontos, setNovoModeloPontos] = useState('');
+  const [novoMontadorFoto, setNovoMontadorFoto] = useState(null);
+  const [enviandoCadastro, setEnviandoCadastro] = useState(false);
+  const [metaPontosDiaria, setMetaPontosDiaria] = useState('');
+  const [metaPontosDiariaInput, setMetaPontosDiariaInput] = useState('');
+  const [loadingMeta, setLoadingMeta] = useState(false);
   const [funcionariosPendentes, setFuncionariosPendentes] = useState([]);
   const [loadingPendentes, setLoadingPendentes] = useState(false);
 
@@ -252,7 +258,7 @@ export default function App() {
     const { data, error } = await supabase.from('cadastros').select('*').order('valor', { ascending: true });
     if (error) { setLoadingCadastros(false); return; }
     const agrupado = { cd_nome: [], modelo: [], nome_montador: [], nome_inspetor: [] };
-    (data || []).forEach((c) => { if (agrupado[c.tipo]) agrupado[c.tipo].push(c.valor); });
+    (data || []).forEach((c) => { if (agrupado[c.tipo]) agrupado[c.tipo].push({ valor: c.valor, pontos: c.pontos ?? null, foto_url: c.foto_url || null }); });
     setCadastros(agrupado);
     setLoadingCadastros(false);
   }
@@ -262,6 +268,24 @@ export default function App() {
     const { data, error } = await supabase.from('profiles').select('email, funcao, created_at').eq('active', false).order('created_at', { ascending: true });
     setFuncionariosPendentes(error ? [] : data || []);
     setLoadingPendentes(false);
+  }
+
+  async function loadMetaDashboard() {
+    setLoadingMeta(true);
+    const { data, error } = await supabase.from('metas_dashboard').select('meta_pontos_diaria').eq('id', 1).single();
+    setMetaPontosDiaria(error || !data ? '0' : String(data.meta_pontos_diaria));
+    setLoadingMeta(false);
+  }
+
+  async function handleSalvarMetaDashboard() {
+    setErro('');
+    const valor = Number(metaPontosDiariaInput);
+    if (!metaPontosDiariaInput || isNaN(valor) || valor < 0) { setErro('Informe um número válido para a meta.'); return; }
+    const { error } = await supabase.from('metas_dashboard').update({ meta_pontos_diaria: valor, atualizado_em: new Date().toISOString() }).eq('id', 1);
+    if (error) { setErro('Não foi possível salvar a meta: ' + error.message); return; }
+    setMetaPontosDiaria(String(valor));
+    setMetaPontosDiariaInput('');
+    setToast('Meta Ponto diária atualizada.');
   }
 
   async function handleAprovarFuncionario(emailAlvo) {
@@ -274,16 +298,35 @@ export default function App() {
 
   async function handleSalvarCadastro() {
     setErro('');
+    const cdNome = novoCdNome.trim().toUpperCase();
+    const modelo = novoModelo.trim().toUpperCase();
+    const nomeMontador = novoNomeMontador.trim().toUpperCase();
+    const nomeInspetor = novoNomeInspetor.trim().toUpperCase();
+    if (!cdNome && !modelo && !nomeMontador && !nomeInspetor) { setErro('Preencha ao menos um campo para cadastrar.'); return; }
+    if (modelo && novoModeloPontos && (isNaN(Number(novoModeloPontos)) || Number(novoModeloPontos) < 0)) { setErro('O campo "Ponto" do modelo precisa ser um número válido.'); return; }
+
+    setEnviandoCadastro(true);
+    let fotoUrlMontador = null;
+    if (nomeMontador && novoMontadorFoto) {
+      const extensao = novoMontadorFoto.name.split('.').pop();
+      const caminho = `${Date.now()}-${nomeMontador.replace(/[^A-Z0-9]/gi, '_')}.${extensao}`;
+      const { error: erroUpload } = await supabase.storage.from('fotos-montadores').upload(caminho, novoMontadorFoto, { upsert: true });
+      if (erroUpload) { setErro('Não foi possível enviar a foto: ' + erroUpload.message); setEnviandoCadastro(false); return; }
+      const { data: urlData } = supabase.storage.from('fotos-montadores').getPublicUrl(caminho);
+      fotoUrlMontador = urlData?.publicUrl || null;
+    }
+
     const novos = [
-      { tipo: 'cd_nome', valor: novoCdNome.trim().toUpperCase() },
-      { tipo: 'modelo', valor: novoModelo.trim().toUpperCase() },
-      { tipo: 'nome_montador', valor: novoNomeMontador.trim().toUpperCase() },
-      { tipo: 'nome_inspetor', valor: novoNomeInspetor.trim().toUpperCase() },
-    ].filter((n) => n.valor);
-    if (novos.length === 0) { setErro('Preencha ao menos um campo para cadastrar.'); return; }
-    const { error } = await supabase.from('cadastros').upsert(novos, { onConflict: 'tipo,valor', ignoreDuplicates: true });
+      cdNome ? { tipo: 'cd_nome', valor: cdNome } : null,
+      modelo ? { tipo: 'modelo', valor: modelo, pontos: novoModeloPontos ? Number(novoModeloPontos) : null } : null,
+      nomeMontador ? { tipo: 'nome_montador', valor: nomeMontador, ...(fotoUrlMontador ? { foto_url: fotoUrlMontador } : {}) } : null,
+      nomeInspetor ? { tipo: 'nome_inspetor', valor: nomeInspetor } : null,
+    ].filter(Boolean);
+
+    const { error } = await supabase.from('cadastros').upsert(novos, { onConflict: 'tipo,valor' });
+    setEnviandoCadastro(false);
     if (error) { setErro('Não foi possível salvar: ' + error.message); return; }
-    setNovoCdNome(''); setNovoModelo(''); setNovoNomeMontador(''); setNovoNomeInspetor('');
+    setNovoCdNome(''); setNovoModelo(''); setNovoNomeMontador(''); setNovoNomeInspetor(''); setNovoModeloPontos(''); setNovoMontadorFoto(null);
     await loadCadastros();
     setToast('Cadastro salvo.');
   }
@@ -1029,7 +1072,7 @@ export default function App() {
             <button type="button" onClick={() => { setFiltroCdManutencao(''); loadManutencao(); setScreen('manutencao'); }} style={{ ...primaryBtn, marginTop: 0 }} className="btn-live"><i className="ti ti-tool" style={{ fontSize: 15, verticalAlign: '-3px', marginRight: 6 }} aria-hidden="true"></i>Manutenção</button>
             <button type="button" onClick={() => { setErro(''); setScreen('expedicaoMenu'); }} style={{ ...primaryBtn, marginTop: 0 }} className="btn-live"><i className="ti ti-truck" style={{ fontSize: 15, verticalAlign: '-3px', marginRight: 6 }} aria-hidden="true"></i>Expedição</button>
             {perfil?.role === 'admin' && (
-              <button type="button" onClick={() => { setErro(''); loadCadastros(); loadFuncionariosPendentes(); setScreen('cadastroConfig'); }} style={{ ...primaryBtn, marginTop: 0 }} className="btn-live"><i className="ti ti-list-details" style={{ fontSize: 15, verticalAlign: '-3px', marginRight: 6 }} aria-hidden="true"></i>Cadastro</button>
+              <button type="button" onClick={() => { setErro(''); loadCadastros(); loadFuncionariosPendentes(); loadMetaDashboard(); setScreen('cadastroConfig'); }} style={{ ...primaryBtn, marginTop: 0, background: '#3E8E5C', color: '#F2FBF4' }} className="btn-live"><i className="ti ti-chart-bar" style={{ fontSize: 15, verticalAlign: '-3px', marginRight: 6 }} aria-hidden="true"></i>KPI de Gestão</button>
             )}
           </div>
           {perfil?.role === 'admin' && (
@@ -1045,7 +1088,7 @@ export default function App() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <button aria-label="Voltar" onClick={() => setScreen('menu')} style={{ background: 'none', border: 'none', color: '#EDEFF2', cursor: 'pointer' }}><i className="ti ti-arrow-left" style={{ fontSize: 20 }} aria-hidden="true"></i></button>
               <img src={LOGO_SRC} alt="Logo Hao Moto Electric Motors" style={{ width: 26, height: 26, borderRadius: '50%', objectFit: 'cover' }} />
-              <h1 style={h1}>Cadastro</h1>
+              <h1 style={h1}>KPI de Gestão</h1>
             </div>
             <button type="button" onClick={() => setScreen('menu')} style={{ background: 'none', border: '1px solid #3A4756', borderRadius: 8, color: '#B9C4CE', fontSize: 12, padding: '6px 10px', cursor: 'pointer' }} className="btn-live ghost-live">Sair</button>
           </div>
@@ -1067,16 +1110,45 @@ export default function App() {
             </div>
           )}
 
+          <div style={{ background: '#2A3542', border: '1px solid #3A4756', borderRadius: 10, padding: '12px 14px', marginBottom: 20 }}>
+            <p style={{ ...label, marginTop: 0 }}>Meta Ponto diária</p>
+            {loadingMeta ? (
+              <p style={{ color: '#8FA3B8', fontSize: 12 }}>Carregando...</p>
+            ) : (
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 20, color: '#7CC98C', minWidth: 60 }}>{metaPontosDiaria || '0'}</span>
+                <input type="number" min="0" step="0.1" style={{ ...input, maxWidth: 140 }} className="field-live" value={metaPontosDiariaInput} onChange={(e) => setMetaPontosDiariaInput(e.target.value)} placeholder="Novo valor" onKeyDown={(e) => { if (e.key === 'Enter') handleSalvarMetaDashboard(); }} />
+                <button type="button" onClick={handleSalvarMetaDashboard} style={{ background: '#3E8E5C', border: 'none', borderRadius: 8, color: '#F2FBF4', fontSize: 12, fontWeight: 700, padding: '8px 14px', cursor: 'pointer' }} className="btn-live">Salvar meta</button>
+              </div>
+            )}
+          </div>
+
           <p style={{ ...label, marginTop: 4 }}>Opções dos formulários</p>
           <p style={{ color: '#8FA3B8', fontSize: 12, margin: '0 0 4px' }}>Esses valores viram opções de escolha nos formulários de Apontamento e Inspeção. Preencha um ou mais campos e clique em Salvar.</p>
           {erro && <p style={{ color: '#E8927A', fontSize: 12, marginTop: 10 }}>{erro}</p>}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 10 }}>
             <div><label style={label}>CD nome</label><input style={input} className="field-live" value={novoCdNome} onChange={(e) => setNovoCdNome(e.target.value.toUpperCase())} placeholder="Ex: CD001" /></div>
-            <div><label style={label}>Modelo</label><input style={input} className="field-live" value={novoModelo} onChange={(e) => setNovoModelo(e.target.value.toUpperCase())} placeholder="Ex: CONQUEST" /></div>
-            <div><label style={label}>Nome montador</label><input style={input} className="field-live" value={novoNomeMontador} onChange={(e) => setNovoNomeMontador(e.target.value.toUpperCase())} placeholder="Nome do montador" /></div>
+            <div>
+              <label style={label}>Modelo</label>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <input style={{ ...input, flex: 1 }} className="field-live" value={novoModelo} onChange={(e) => setNovoModelo(e.target.value.toUpperCase())} placeholder="Ex: CONQUEST" />
+                <input type="number" min="0" step="0.1" style={{ ...input, width: 84 }} className="field-live" value={novoModeloPontos} onChange={(e) => setNovoModeloPontos(e.target.value)} placeholder="Ponto" title="Pontuação do modelo" />
+              </div>
+            </div>
+            <div>
+              <label style={label}>Nome montador</label>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <input style={{ ...input, flex: 1 }} className="field-live" value={novoNomeMontador} onChange={(e) => setNovoNomeMontador(e.target.value.toUpperCase())} placeholder="Nome do montador" />
+                <label style={{ background: '#2A3542', border: '1px solid #3A4756', borderRadius: 8, padding: '10px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center', color: novoMontadorFoto ? '#7CC98C' : '#8FA3B8' }} title="Anexar foto do montador">
+                  <i className="ti ti-camera" style={{ fontSize: 16 }} aria-hidden="true"></i>
+                  <input type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => setNovoMontadorFoto(e.target.files?.[0] || null)} />
+                </label>
+              </div>
+              {novoMontadorFoto && <p style={{ fontSize: 10, color: '#7CC98C', margin: '4px 0 0' }}>📎 {novoMontadorFoto.name}</p>}
+            </div>
             <div><label style={label}>Nome inspetor</label><input style={input} className="field-live" value={novoNomeInspetor} onChange={(e) => setNovoNomeInspetor(e.target.value.toUpperCase())} placeholder="Nome do inspetor" /></div>
           </div>
-          <button type="button" onClick={handleSalvarCadastro} style={primaryBtn} className="btn-live">Salvar</button>
+          <button type="button" onClick={handleSalvarCadastro} disabled={enviandoCadastro} style={{ ...primaryBtn, opacity: enviandoCadastro ? 0.6 : 1, cursor: enviandoCadastro ? 'not-allowed' : 'pointer' }} className="btn-live">{enviandoCadastro ? 'Salvando...' : 'Salvar'}</button>
 
           {loadingCadastros && <p style={{ color: '#8FA3B8', fontSize: 13, marginTop: 20 }}>Carregando cadastros...</p>}
           {!loadingCadastros && (
@@ -1093,10 +1165,18 @@ export default function App() {
                     <p style={{ color: '#8FA3B8', fontSize: 12 }}>Nenhum cadastrado ainda.</p>
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 220, overflowY: 'auto' }}>
-                      {cadastros[chave].map((valor) => (
-                        <div key={valor} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#2A3542', border: '1px solid #3A4756', borderRadius: 6, padding: '6px 8px', fontSize: 12 }}>
-                          <span>{valor}</span>
-                          <button type="button" onClick={() => handleExcluirCadastroItem(chave, valor)} style={{ background: 'none', border: 'none', color: '#E8927A', cursor: 'pointer', fontSize: 11 }} className="btn-live">Excluir</button>
+                      {cadastros[chave].map((item) => (
+                        <div key={item.valor} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#2A3542', border: '1px solid #3A4756', borderRadius: 6, padding: '6px 8px', fontSize: 12 }}>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            {chave === 'nome_montador' && (
+                              item.foto_url
+                                ? <img src={item.foto_url} alt={item.valor} style={{ width: 22, height: 22, borderRadius: '50%', objectFit: 'cover' }} />
+                                : <span style={{ width: 22, height: 22, borderRadius: '50%', background: '#3A4756', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, color: '#8FA3B8' }}>?</span>
+                            )}
+                            {item.valor}
+                            {chave === 'modelo' && item.pontos != null && <span style={{ color: '#E8A33D', fontFamily: "'JetBrains Mono', monospace", fontSize: 11 }}>· {item.pontos} pts</span>}
+                          </span>
+                          <button type="button" onClick={() => handleExcluirCadastroItem(chave, item.valor)} style={{ background: 'none', border: 'none', color: '#E8927A', cursor: 'pointer', fontSize: 11 }} className="btn-live">Excluir</button>
                         </div>
                       ))}
                     </div>
@@ -1191,7 +1271,7 @@ export default function App() {
               <label style={{ ...label, marginTop: 10 }}>Inspetor da Qualidade (CD)</label>
               <select style={input} className="field-live" value={edicoesInspecao[r.id]?.inspetor ?? ''} onChange={(e) => setEdicoesInspecao((prev) => ({ ...prev, [r.id]: { ...prev[r.id], inspetor: e.target.value } }))}>
                 <option value="">Selecionar...</option>
-                {cadastros.nome_inspetor.map((v) => <option key={v} value={v}>{v}</option>)}
+                {cadastros.nome_inspetor.map((item) => <option key={item.valor} value={item.valor}>{item.valor}</option>)}
               </select>
               {cadastros.nome_inspetor.length === 0 && <p style={{ color: '#E8A33D', fontSize: 11, margin: '2px 0 0' }}>Nenhum inspetor cadastrado — peça a um administrador para cadastrar em "Cadastro".</p>}
               <label style={{ ...label, marginTop: 10 }}>Anomalias</label>
@@ -1518,12 +1598,12 @@ export default function App() {
           <label style={label}>CD nome</label>
           <select style={input} className="field-live" value={form.cdNome} onChange={(e) => setForm({ ...form, cdNome: e.target.value })}>
             <option value="">Selecionar...</option>
-            {cadastros.cd_nome.map((v) => <option key={v} value={v}>{v}</option>)}
+            {cadastros.cd_nome.map((item) => <option key={item.valor} value={item.valor}>{item.valor}</option>)}
           </select>
           <label style={label}>Nome montador</label>
           <select style={input} className="field-live" value={form.nomeMontador} onChange={(e) => setForm({ ...form, nomeMontador: e.target.value })}>
             <option value="">Selecionar...</option>
-            {cadastros.nome_montador.map((v) => <option key={v} value={v}>{v}</option>)}
+            {cadastros.nome_montador.map((item) => <option key={item.valor} value={item.valor}>{item.valor}</option>)}
           </select>
           <label style={label}>Serviço</label>
           <select style={input} className="field-live" value={form.tipoServico} onChange={(e) => setForm({ ...form, tipoServico: e.target.value })}>
@@ -1534,7 +1614,7 @@ export default function App() {
           <label style={label}>Modelo</label>
           <select style={input} className="field-live" value={form.modelo} onChange={(e) => setForm({ ...form, modelo: e.target.value })}>
             <option value="">Selecionar...</option>
-            {cadastros.modelo.map((v) => <option key={v} value={v}>{v}</option>)}
+            {cadastros.modelo.map((item) => <option key={item.valor} value={item.valor}>{item.valor}</option>)}
           </select>
           {cadastros.cd_nome.length === 0 || cadastros.modelo.length === 0 || cadastros.nome_montador.length === 0 ? (
             <p style={{ color: '#E8A33D', fontSize: 11, margin: '2px 0 0' }}>Alguma lista está vazia — peça a um administrador para cadastrar em "Cadastro".</p>
