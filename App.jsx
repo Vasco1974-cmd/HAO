@@ -118,6 +118,8 @@ export default function App() {
   const [enviandoCadastro, setEnviandoCadastro] = useState(false);
   const [metaPontosDiaria, setMetaPontosDiaria] = useState('');
   const [metaPontosDiariaInput, setMetaPontosDiariaInput] = useState('');
+  const [quantidadeMontadores, setQuantidadeMontadores] = useState('');
+  const [quantidadeMontadoresInput, setQuantidadeMontadoresInput] = useState('');
   const [loadingMeta, setLoadingMeta] = useState(false);
   const [funcionariosPendentes, setFuncionariosPendentes] = useState([]);
   const [loadingPendentes, setLoadingPendentes] = useState(false);
@@ -272,8 +274,9 @@ export default function App() {
 
   async function loadMetaDashboard() {
     setLoadingMeta(true);
-    const { data, error } = await supabase.from('metas_dashboard').select('meta_pontos_diaria').eq('id', 1).single();
+    const { data, error } = await supabase.from('metas_dashboard').select('meta_pontos_diaria, quantidade_montadores').eq('id', 1).single();
     setMetaPontosDiaria(error || !data ? '0' : String(data.meta_pontos_diaria));
+    setQuantidadeMontadores(error || !data ? '0' : String(data.quantidade_montadores ?? 0));
     setLoadingMeta(false);
   }
 
@@ -286,6 +289,17 @@ export default function App() {
     setMetaPontosDiaria(String(valor));
     setMetaPontosDiariaInput('');
     setToast('Meta Ponto diária atualizada.');
+  }
+
+  async function handleSalvarQuantidadeMontadores() {
+    setErro('');
+    const valor = Number(quantidadeMontadoresInput);
+    if (!quantidadeMontadoresInput || isNaN(valor) || valor < 0 || !Number.isInteger(valor)) { setErro('Informe um número inteiro válido para a quantidade de montadores.'); return; }
+    const { error } = await supabase.from('metas_dashboard').update({ quantidade_montadores: valor, atualizado_em: new Date().toISOString() }).eq('id', 1);
+    if (error) { setErro('Não foi possível salvar a quantidade de montadores: ' + error.message); return; }
+    setQuantidadeMontadores(String(valor));
+    setQuantidadeMontadoresInput('');
+    setToast('Quantidade de Montadores atualizada.');
   }
 
   async function handleAprovarFuncionario(emailAlvo) {
@@ -1159,17 +1173,32 @@ export default function App() {
             </div>
           )}
 
-          <div style={{ background: '#2A3542', border: '1px solid #3A4756', borderRadius: 10, padding: '12px 14px', marginBottom: 20 }}>
-            <p style={{ ...label, marginTop: 0 }}>Meta Ponto diária</p>
-            {loadingMeta ? (
-              <p style={{ color: '#8FA3B8', fontSize: 12 }}>Carregando...</p>
-            ) : (
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 20, color: '#7CC98C', minWidth: 60 }}>{metaPontosDiaria || '0'}</span>
-                <input type="number" min="0" step="0.1" style={{ ...input, maxWidth: 140 }} className="field-live" value={metaPontosDiariaInput} onChange={(e) => setMetaPontosDiariaInput(e.target.value)} placeholder="Novo valor" onKeyDown={(e) => { if (e.key === 'Enter') handleSalvarMetaDashboard(); }} />
-                <button type="button" onClick={handleSalvarMetaDashboard} style={{ background: '#3E8E5C', border: 'none', borderRadius: 8, color: '#F2FBF4', fontSize: 12, fontWeight: 700, padding: '8px 14px', cursor: 'pointer' }} className="btn-live">Salvar meta</button>
-              </div>
-            )}
+          <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
+            <div style={{ flex: '1 1 240px', background: '#2A3542', border: '1px solid #3A4756', borderRadius: 10, padding: '12px 14px' }}>
+              <p style={{ ...label, marginTop: 0 }}>Meta Ponto diária</p>
+              {loadingMeta ? (
+                <p style={{ color: '#8FA3B8', fontSize: 12 }}>Carregando...</p>
+              ) : (
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 20, color: '#7CC98C', minWidth: 60 }}>{metaPontosDiaria || '0'}</span>
+                  <input type="number" min="0" step="0.1" style={{ ...input, maxWidth: 140 }} className="field-live" value={metaPontosDiariaInput} onChange={(e) => setMetaPontosDiariaInput(e.target.value)} placeholder="Novo valor" onKeyDown={(e) => { if (e.key === 'Enter') handleSalvarMetaDashboard(); }} />
+                  <button type="button" onClick={handleSalvarMetaDashboard} style={{ background: '#3E8E5C', border: 'none', borderRadius: 8, color: '#F2FBF4', fontSize: 12, fontWeight: 700, padding: '8px 14px', cursor: 'pointer' }} className="btn-live">Salvar meta</button>
+                </div>
+              )}
+            </div>
+
+            <div style={{ flex: '1 1 240px', background: '#2A3542', border: '1px solid #3A4756', borderRadius: 10, padding: '12px 14px' }}>
+              <p style={{ ...label, marginTop: 0 }}>Quantidade de Montadores</p>
+              {loadingMeta ? (
+                <p style={{ color: '#8FA3B8', fontSize: 12 }}>Carregando...</p>
+              ) : (
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 20, color: '#7CC98C', minWidth: 60 }}>{quantidadeMontadores || '0'}</span>
+                  <input type="number" min="0" step="1" style={{ ...input, maxWidth: 140 }} className="field-live" value={quantidadeMontadoresInput} onChange={(e) => setQuantidadeMontadoresInput(e.target.value)} placeholder="Novo valor" onKeyDown={(e) => { if (e.key === 'Enter') handleSalvarQuantidadeMontadores(); }} />
+                  <button type="button" onClick={handleSalvarQuantidadeMontadores} style={{ background: '#3E8E5C', border: 'none', borderRadius: 8, color: '#F2FBF4', fontSize: 12, fontWeight: 700, padding: '8px 14px', cursor: 'pointer' }} className="btn-live">Salvar</button>
+                </div>
+              )}
+            </div>
           </div>
 
           <p style={{ ...label, marginTop: 4 }}>Opções dos formulários</p>
