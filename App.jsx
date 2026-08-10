@@ -590,6 +590,54 @@ export default function App() {
     setToast('Enviado de volta para Inspeção.');
   }
 
+  async function handleEnviarDesmontagem(id) {
+    setErro('');
+    if (!window.confirm('Tem certeza que deseja enviar este equipamento para Desmontagem? Ele entrará no relatório de desmontagem e será excluído do sistema. Esta ação não pode ser desfeita.')) return;
+    const registro = manutencaoRegistros.find((r) => r.id === id);
+    if (!registro) { setErro('Registro não encontrado.'); return; }
+    const edicao = edicoesManutencao[id] || {};
+    const agora = new Date();
+    const { error: erroInsert } = await supabase.from('desmontagens').insert({
+      apontamento_id: registro.id,
+      data: agora.toISOString().slice(0, 10),
+      cd_nome: registro.cd_nome,
+      nome_montador: registro.nome_montador,
+      tipo_servico: registro.tipo_servico,
+      modelo: registro.modelo,
+      cor: registro.cor,
+      motor: registro.motor,
+      chassi: registro.chassi,
+      anomalia: edicao.anomalia ?? registro.anomalia ?? '',
+      falha_montagem: edicao.falhaMontagem ?? registro.falha_montagem ?? '',
+      usuario_email: perfil?.email || '',
+    });
+    if (erroInsert) { setErro('Não foi possível registrar a desmontagem: ' + erroInsert.message); return; }
+    const { error: erroDelete } = await supabase.from('apontamentos').delete().eq('id', id);
+    if (erroDelete) { setErro('Não foi possível excluir o equipamento: ' + erroDelete.message); return; }
+    setManutencaoRegistros((prev) => prev.filter((r) => r.id !== id));
+    setEdicoesManutencao((prev) => { const next = { ...prev }; delete next[id]; return next; });
+    setToast('Enviado para Desmontagem e excluído do sistema.');
+  }
+
+  async function handleRelatorioDesmontagem() {
+    setErro('');
+    const { data, error } = await supabase.from('desmontagens').select('*').order('created_at', { ascending: false });
+    if (error) { setErro('Não foi possível gerar o relatório: ' + error.message); return; }
+    const registros = data || [];
+    if (registros.length === 0) { setToast('Nenhuma desmontagem registrada ainda.'); return; }
+    const linhas = registros.map((r) => ({
+      'Data': r.data, 'CD nome': r.cd_nome, 'Modelo': r.modelo, 'Cor': r.cor, 'Motor': r.motor, 'Chassi': r.chassi,
+      'Tipo de Serviço': r.tipo_servico || '', 'Nome Montador': r.nome_montador || '', 'Anomalia': r.anomalia || '', 'Falha de Montagem': r.falha_montagem || '',
+      'Responsável': r.usuario_email || '',
+    }));
+    const ws = XLSX.utils.json_to_sheet(linhas);
+    ws['!cols'] = [{ wch: 12 }, { wch: 12 }, { wch: 18 }, { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 16 }, { wch: 20 }, { wch: 28 }, { wch: 28 }, { wch: 22 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Desmontagens');
+    XLSX.writeFile(wb, `relatorio_desmontagem_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    setToast(`Relatório baixado: ${registros.length} desmontagem(ns).`);
+  }
+
   async function handleRelatorioDiarioManutencao() {
     setErro('');
     const hoje = new Date().toISOString().slice(0, 10);
@@ -914,6 +962,7 @@ export default function App() {
   const h1 = { fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 700, fontSize: 26, letterSpacing: '0.02em', margin: 0, textTransform: 'uppercase' };
   const primaryBtn = { width: '100%', marginTop: 20, padding: '12px 0', borderRadius: 8, border: 'none', background: '#D97B2A', color: '#1F1300', fontWeight: 700, fontFamily: "'Barlow Condensed', sans-serif", fontSize: 16, letterSpacing: '0.03em', textTransform: 'uppercase', cursor: 'pointer' };
   const ghostBtn = { width: '100%', marginTop: 10, padding: '10px 0', borderRadius: 8, border: '1px solid #3A4756', background: 'transparent', color: '#B9C4CE', fontFamily: "'Inter', sans-serif", fontSize: 13, cursor: 'pointer' };
+  const dangerBtn = { flex: 1, marginTop: 10, padding: '12px 0', borderRadius: 8, border: 'none', background: '#C0392B', color: '#FFF3F0', fontWeight: 700, fontFamily: "'Barlow Condensed', sans-serif", fontSize: 16, letterSpacing: '0.03em', textTransform: 'uppercase', cursor: 'pointer' };
 
   return (
     <div style={{ padding: '2rem 1rem', minHeight: '100vh', background: '#12181F' }}>
@@ -1355,6 +1404,7 @@ export default function App() {
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
               {perfil?.role === 'admin' && <button type="button" onClick={handleRelatorioDiarioManutencao} style={{ background: 'none', border: '1px solid #E8A33D', borderRadius: 8, color: '#E8A33D', fontSize: 12, padding: '6px 10px', cursor: 'pointer' }} className="btn-live ghost-live"><i className="ti ti-file-spreadsheet" style={{ fontSize: 14, verticalAlign: '-2px', marginRight: 4 }} aria-hidden="true"></i>Relatório diário</button>}
+              {perfil?.role === 'admin' && <button type="button" onClick={handleRelatorioDesmontagem} style={{ background: 'none', border: '1px solid #C0392B', borderRadius: 8, color: '#E8927A', fontSize: 12, padding: '6px 10px', cursor: 'pointer' }} className="btn-live ghost-live"><i className="ti ti-file-spreadsheet" style={{ fontSize: 14, verticalAlign: '-2px', marginRight: 4 }} aria-hidden="true"></i>Relatório desmontagem</button>}
               <button type="button" onClick={() => setScreen('menu')} style={{ background: 'none', border: '1px solid #3A4756', borderRadius: 8, color: '#B9C4CE', fontSize: 12, padding: '6px 10px', cursor: 'pointer' }} className="btn-live ghost-live">Sair</button>
             </div>
           </div>
@@ -1378,7 +1428,10 @@ export default function App() {
                     <textarea style={{ ...input, minHeight: 50, resize: 'vertical', fontSize: 13 }} className="field-live" value={edicoesManutencao[r.id]?.falhaMontagem ?? ''} onChange={(e) => setEdicoesManutencao((prev) => ({ ...prev, [r.id]: { ...prev[r.id], falhaMontagem: e.target.value.toUpperCase() } }))} placeholder="Sem falhas de montagem" />
                     <label style={{ ...label, marginTop: 10 }}>Serviço executado</label>
                     <textarea style={{ ...input, minHeight: 50, resize: 'vertical', fontSize: 13 }} className="field-live" value={edicoesManutencao[r.id]?.servicoExecutado ?? ''} onChange={(e) => setEdicoesManutencao((prev) => ({ ...prev, [r.id]: { ...prev[r.id], servicoExecutado: e.target.value.toUpperCase() } }))} placeholder="Descreva o que foi consertado/executado" />
-                    <button type="button" onClick={() => handleEnviarInspecao(r.id)} style={{ ...primaryBtn, marginTop: 10, fontSize: 14 }} className="btn-live">Enviar para Inspeção</button>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button type="button" onClick={() => handleEnviarInspecao(r.id)} style={{ ...primaryBtn, flex: 1, marginTop: 10, fontSize: 14 }} className="btn-live">Enviar para Inspeção</button>
+                      <button type="button" onClick={() => handleEnviarDesmontagem(r.id)} style={{ ...dangerBtn, fontSize: 14 }} className="btn-live">Enviar para Desmontagem</button>
+                    </div>
                   </div>
                 ))}
               </div>
