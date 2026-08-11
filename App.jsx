@@ -108,13 +108,12 @@ export default function App() {
   const [itensDisponiveisRevisao, setItensDisponiveisRevisao] = useState([]);
   const [notaFiscal, setNotaFiscal] = useState('');
 
-  const [cadastros, setCadastros] = useState({ cd_nome: [], modelo: [], nome_montador: [], nome_inspetor: [], nome_mecanico: [] });
+  const [cadastros, setCadastros] = useState({ cd_nome: [], modelo: [], nome_montador: [], nome_inspetor: [] });
   const [loadingCadastros, setLoadingCadastros] = useState(false);
   const [novoCdNome, setNovoCdNome] = useState('');
   const [novoModelo, setNovoModelo] = useState('');
   const [novoNomeMontador, setNovoNomeMontador] = useState('');
   const [novoNomeInspetor, setNovoNomeInspetor] = useState('');
-  const [novoNomeMecanico, setNovoNomeMecanico] = useState('');
   const [novoModeloPontos, setNovoModeloPontos] = useState('');
   const [novoMontadorFoto, setNovoMontadorFoto] = useState(null);
   const [enviandoCadastro, setEnviandoCadastro] = useState(false);
@@ -261,7 +260,7 @@ export default function App() {
     setLoadingCadastros(true);
     const { data, error } = await supabase.from('cadastros').select('*').order('valor', { ascending: true });
     if (error) { setLoadingCadastros(false); return; }
-    const agrupado = { cd_nome: [], modelo: [], nome_montador: [], nome_inspetor: [], nome_mecanico: [] };
+    const agrupado = { cd_nome: [], modelo: [], nome_montador: [], nome_inspetor: [] };
     (data || []).forEach((c) => { if (agrupado[c.tipo]) agrupado[c.tipo].push({ valor: c.valor, pontos: c.pontos ?? null, foto_url: c.foto_url || null }); });
     setCadastros(agrupado);
     setLoadingCadastros(false);
@@ -318,8 +317,7 @@ export default function App() {
     const modelo = novoModelo.trim().toUpperCase();
     const nomeMontador = novoNomeMontador.trim().toUpperCase();
     const nomeInspetor = novoNomeInspetor.trim().toUpperCase();
-    const nomeMecanico = novoNomeMecanico.trim().toUpperCase();
-    if (!cdNome && !modelo && !nomeMontador && !nomeInspetor && !nomeMecanico) { setErro('Preencha ao menos um campo para cadastrar.'); return; }
+    if (!cdNome && !modelo && !nomeMontador && !nomeInspetor) { setErro('Preencha ao menos um campo para cadastrar.'); return; }
     if (modelo && novoModeloPontos && (isNaN(Number(novoModeloPontos)) || Number(novoModeloPontos) < 0)) { setErro('O campo "Ponto" do modelo precisa ser um número válido.'); return; }
 
     setEnviandoCadastro(true);
@@ -338,13 +336,12 @@ export default function App() {
       modelo ? { tipo: 'modelo', valor: modelo, pontos: novoModeloPontos ? Number(novoModeloPontos) : null } : null,
       nomeMontador ? { tipo: 'nome_montador', valor: nomeMontador, ...(fotoUrlMontador ? { foto_url: fotoUrlMontador } : {}) } : null,
       nomeInspetor ? { tipo: 'nome_inspetor', valor: nomeInspetor } : null,
-      nomeMecanico ? { tipo: 'nome_mecanico', valor: nomeMecanico } : null,
     ].filter(Boolean);
 
     const { error } = await supabase.from('cadastros').upsert(novos, { onConflict: 'tipo,valor' });
     setEnviandoCadastro(false);
     if (error) { setErro('Não foi possível salvar: ' + error.message); return; }
-    setNovoCdNome(''); setNovoModelo(''); setNovoNomeMontador(''); setNovoNomeInspetor(''); setNovoNomeMecanico(''); setNovoModeloPontos(''); setNovoMontadorFoto(null);
+    setNovoCdNome(''); setNovoModelo(''); setNovoNomeMontador(''); setNovoNomeInspetor(''); setNovoModeloPontos(''); setNovoMontadorFoto(null);
     await loadCadastros();
     setToast('Cadastro salvo.');
   }
@@ -361,6 +358,10 @@ export default function App() {
     setErro('');
     if (!form.cdNome || !form.nomeMontador || !form.tipoServico || !form.modelo || !form.cor || !form.motor || !form.chassi) {
       setErro('Preencha CD nome, nome do montador, serviço, modelo, cor, motor e chassi.');
+      return;
+    }
+    if (form.tipoServico === 'Manutenção' && !form.nomeMecanico.trim()) {
+      setErro('Para serviço de Manutenção, o nome do mecânico é obrigatório.');
       return;
     }
     const statusInicial = form.tipoServico === 'Manutenção' ? 'manutencao' : 'pendente';
@@ -1230,7 +1231,6 @@ export default function App() {
               {novoMontadorFoto && <p style={{ fontSize: 10, color: '#7CC98C', margin: '4px 0 0' }}>📎 {novoMontadorFoto.name}</p>}
             </div>
             <div><label style={label}>Nome inspetor</label><input style={input} className="field-live" value={novoNomeInspetor} onChange={(e) => setNovoNomeInspetor(e.target.value.toUpperCase())} placeholder="Nome do inspetor" /></div>
-            <div><label style={label}>Nome mecânico</label><input style={input} className="field-live" value={novoNomeMecanico} onChange={(e) => setNovoNomeMecanico(e.target.value.toUpperCase())} placeholder="Nome do mecânico" /></div>
           </div>
           <button type="button" onClick={handleSalvarCadastro} disabled={enviandoCadastro} style={{ ...primaryBtn, opacity: enviandoCadastro ? 0.6 : 1, cursor: enviandoCadastro ? 'not-allowed' : 'pointer' }} className="btn-live">{enviandoCadastro ? 'Salvando...' : 'Salvar'}</button>
 
@@ -1242,7 +1242,6 @@ export default function App() {
                 { chave: 'modelo', titulo: 'Modelo' },
                 { chave: 'nome_montador', titulo: 'Nome montador' },
                 { chave: 'nome_inspetor', titulo: 'Nome inspetor' },
-                { chave: 'nome_mecanico', titulo: 'Nome mecânico' },
               ].map(({ chave, titulo }) => (
                 <div key={chave}>
                   <p style={{ ...label, marginTop: 0 }}>{titulo} ({cadastros[chave].length})</p>
@@ -1715,11 +1714,8 @@ export default function App() {
             <option value="">Selecionar...</option>
             {cadastros.nome_montador.map((item) => <option key={item.valor} value={item.valor}>{item.valor}</option>)}
           </select>
-          <label style={label}>Nome mecânico</label>
-          <select style={input} className="field-live" value={form.nomeMecanico} onChange={(e) => setForm({ ...form, nomeMecanico: e.target.value })}>
-            <option value="">Selecionar...</option>
-            {cadastros.nome_mecanico.map((item) => <option key={item.valor} value={item.valor}>{item.valor}</option>)}
-          </select>
+          <label style={label}>Nome mecânico {form.tipoServico === 'Manutenção' ? <span style={{ color: '#E8927A', textTransform: 'none' }}>(obrigatório)</span> : <span style={{ color: '#8FA3B8', textTransform: 'none' }}>(opcional)</span>}</label>
+          <input style={input} className="field-live" value={form.nomeMecanico} onChange={(e) => setForm({ ...form, nomeMecanico: e.target.value.toUpperCase() })} placeholder="Ex: João Silva" />
           <label style={label}>Modelo</label>
           <select style={input} className="field-live" value={form.modelo} onChange={(e) => setForm({ ...form, modelo: e.target.value })}>
             <option value="">Selecionar...</option>
