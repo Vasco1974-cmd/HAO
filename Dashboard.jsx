@@ -228,13 +228,13 @@ export default function Dashboard() {
       .filter((a) => a.data >= inicioISO && a.data <= fimISO)
       .map((a) => ({ ...a, nome_montador: resolverNomeMontador(a.nome_montador), pontos: pontosPorModelo[a.modelo] || 0 }));
 
-    // por montador
+    // por montador — conta só Serviço = Montagem (Manutenção não é produção de montagem)
     const mapaMontadores = {};
     const nomesConhecidos = new Set(montadoresCadastro.map((m) => m.valor));
-    registros.forEach((r) => { if (r.nome_montador) nomesConhecidos.add(r.nome_montador); });
+    registros.forEach((r) => { if (r.nome_montador && r.tipo_servico !== 'Manutenção') nomesConhecidos.add(r.nome_montador); });
     nomesConhecidos.forEach((nome) => { mapaMontadores[nome] = { nome, pontos: 0, unidades: 0, foto: fotoPorMontador[nome] || null }; });
     registros.forEach((r) => {
-      if (!r.nome_montador) return;
+      if (!r.nome_montador || r.tipo_servico === 'Manutenção') return;
       if (!mapaMontadores[r.nome_montador]) mapaMontadores[r.nome_montador] = { nome: r.nome_montador, pontos: 0, unidades: 0, foto: fotoPorMontador[r.nome_montador] || null };
       mapaMontadores[r.nome_montador].pontos += r.pontos;
       mapaMontadores[r.nome_montador].unidades += 1;
