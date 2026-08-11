@@ -84,6 +84,7 @@ export default function App() {
   const [inspecaoRegistros, setInspecaoRegistros] = useState([]);
   const [loadingInspecao, setLoadingInspecao] = useState(false);
   const [filtroCdInspecao, setFiltroCdInspecao] = useState('');
+  const [filtroModeloInspecao, setFiltroModeloInspecao] = useState('');
   const [edicoesInspecao, setEdicoesInspecao] = useState({});
   const [checklistItemId, setChecklistItemId] = useState(null);
   const [selectedInspecaoId, setSelectedInspecaoId] = useState(null);
@@ -1130,10 +1131,11 @@ export default function App() {
             <p style={{ color: '#8FA3B8', fontSize: 12, margin: '4px 0 0' }}>{perfil?.email} {perfil?.funcao && `· ${perfil.funcao}`} {perfil?.role === 'admin' && <span style={{ color: '#E8A33D' }}>· administrador</span>}</p>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <button type="button" onClick={() => { loadCadastros(); setScreen('producao'); }} style={{ ...primaryBtn, marginTop: 0 }} className="btn-live"><i className="ti ti-clipboard-list" style={{ fontSize: 16, verticalAlign: '-3px', marginRight: 6 }} aria-hidden="true"></i>Apontamento</button>
+            <button type="button" onClick={() => { loadCadastros(); setScreen('producao'); }} style={{ ...primaryBtn, marginTop: 0 }} className="btn-live"><i className="ti ti-clipboard-list" style={{ fontSize: 16, verticalAlign: '-3px', marginRight: 6 }} aria-hidden="true"></i>Montagem</button>
             <button type="button" onClick={() => { setFiltroCdInspecao(''); setSelectedInspecaoId(null); loadInspecao(); loadCadastros(); setScreen('inspecaoLista'); }} style={{ ...primaryBtn, marginTop: 0 }} className="btn-live"><i className="ti ti-search" style={{ fontSize: 15, verticalAlign: '-3px', marginRight: 6 }} aria-hidden="true"></i>Inspeção</button>
             <button type="button" onClick={() => { setFiltroCdManutencao(''); loadManutencao(); setScreen('manutencao'); }} style={{ ...primaryBtn, marginTop: 0 }} className="btn-live"><i className="ti ti-tool" style={{ fontSize: 15, verticalAlign: '-3px', marginRight: 6 }} aria-hidden="true"></i>Manutenção</button>
             <button type="button" onClick={() => { setErro(''); setScreen('expedicaoMenu'); }} style={{ ...primaryBtn, marginTop: 0 }} className="btn-live"><i className="ti ti-truck" style={{ fontSize: 15, verticalAlign: '-3px', marginRight: 6 }} aria-hidden="true"></i>Expedição</button>
+            <button type="button" onClick={() => window.open(window.location.origin + window.location.pathname + '#dashboard', '_blank')} style={{ ...primaryBtn, marginTop: 0, background: '#1D2A22', color: '#7CC98C', border: '1px solid #3E8E5C' }} className="btn-live"><i className="ti ti-gauge" style={{ fontSize: 15, verticalAlign: '-3px', marginRight: 6 }} aria-hidden="true"></i>Dashboard de Produção</button>
             {perfil?.role === 'admin' && (
               <button type="button" onClick={() => { setErro(''); loadCadastros(); loadFuncionariosPendentes(); loadMetaDashboard(); setScreen('cadastroConfig'); }} style={{ ...primaryBtn, marginTop: 0, background: '#3E8E5C', color: '#F2FBF4' }} className="btn-live"><i className="ti ti-chart-bar" style={{ fontSize: 15, verticalAlign: '-3px', marginRight: 6 }} aria-hidden="true"></i>KPI de Gestão</button>
             )}
@@ -1279,19 +1281,33 @@ export default function App() {
               <button type="button" onClick={() => setScreen('menu')} style={{ background: 'none', border: '1px solid #3A4756', borderRadius: 8, color: '#B9C4CE', fontSize: 12, padding: '6px 10px', cursor: 'pointer' }} className="btn-live ghost-live">Sair</button>
             </div>
           </div>
-          <label style={label}>Filtrar por CD nome</label>
-          <input style={input} className="field-live" value={filtroCdInspecao} onChange={(e) => setFiltroCdInspecao(e.target.value.toUpperCase())} placeholder="Ex: CD001 (deixe vazio para ver todos)" />
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <div style={{ flex: '1 1 220px' }}>
+              <label style={label}>Filtrar por CD nome</label>
+              <input style={input} className="field-live" value={filtroCdInspecao} onChange={(e) => setFiltroCdInspecao(e.target.value.toUpperCase())} placeholder="Ex: CD001 (deixe vazio para ver todos)" />
+            </div>
+            <div style={{ flex: '1 1 180px' }}>
+              <label style={label}>Filtrar por Modelo</label>
+              <select style={input} className="field-live" value={filtroModeloInspecao} onChange={(e) => setFiltroModeloInspecao(e.target.value)}>
+                <option value="">Todos os modelos</option>
+                {cadastros.modelo.map((item) => <option key={item.valor} value={item.valor}>{item.valor}</option>)}
+              </select>
+            </div>
+          </div>
           {erro && <p style={{ color: '#E8927A', fontSize: 12, marginTop: 10 }}>{erro}</p>}
           {loadingInspecao && <p style={{ color: '#8FA3B8', fontSize: 13, marginTop: 14 }}>Carregando...</p>}
           {!loadingInspecao && (() => {
-            const listaFiltrada = inspecaoRegistros.filter((r) => !filtroCdInspecao.trim() || (r.cd_nome || '').includes(filtroCdInspecao.trim()));
+            const listaFiltrada = inspecaoRegistros.filter((r) =>
+              (!filtroCdInspecao.trim() || (r.cd_nome || '').includes(filtroCdInspecao.trim())) &&
+              (!filtroModeloInspecao || r.modelo === filtroModeloInspecao)
+            );
             if (listaFiltrada.length === 0) return <p style={{ color: '#8FA3B8', fontSize: 13, marginTop: 14 }}>Nenhum equipamento pendente de inspeção.</p>;
             return (
               <div style={{ marginTop: 14, maxHeight: 520, overflowY: 'auto', overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                   <thead>
                     <tr>
-                      {['CD Nome', 'Modelo', 'Cor', 'Motor', 'Chassi', ''].map((titulo, idx) => (
+                      {['CD Nome', 'Data Montagem', 'Modelo', 'Cor', 'Motor', 'Chassi', ''].map((titulo, idx) => (
                         <th key={idx} style={{ textAlign: 'left', color: '#8FA3B8', textTransform: 'uppercase', letterSpacing: '0.03em', fontSize: 10, padding: '6px 8px', borderBottom: '1px solid #3A4756', whiteSpace: 'nowrap' }}>{titulo}</th>
                       ))}
                     </tr>
@@ -1300,6 +1316,7 @@ export default function App() {
                     {listaFiltrada.map((r) => (
                       <tr key={r.id} className="row-in" style={{ borderBottom: '1px solid #3A4756' }}>
                         <td style={{ padding: '8px', fontFamily: "'JetBrains Mono', monospace", whiteSpace: 'nowrap' }}>{r.cd_nome}</td>
+                        <td style={{ padding: '8px', fontFamily: "'JetBrains Mono', monospace", whiteSpace: 'nowrap' }}>{r.data ? new Date(r.data + 'T00:00:00').toLocaleDateString('pt-BR') : ''}</td>
                         <td style={{ padding: '8px', whiteSpace: 'nowrap' }}>{r.modelo}</td>
                         <td style={{ padding: '8px', whiteSpace: 'nowrap' }}>{r.cor}</td>
                         <td style={{ padding: '8px', fontFamily: "'JetBrains Mono', monospace", whiteSpace: 'nowrap' }}>{r.motor}</td>
@@ -1668,7 +1685,7 @@ export default function App() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <button aria-label="Voltar à página inicial" onClick={() => setScreen('menu')} style={{ background: 'none', border: 'none', color: '#EDEFF2', cursor: 'pointer', padding: 0, display: 'flex' }}><i className="ti ti-arrow-left" style={{ fontSize: 18 }} aria-hidden="true"></i></button>
               <img src={LOGO_SRC} alt="Logo Hao Moto Electric Motors" className="logo-glow" style={{ width: 30, height: 30, borderRadius: '50%', objectFit: 'cover' }} />
-              <h1 style={h1}>Apontamento</h1>
+              <h1 style={h1}>Montagem</h1>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
               {perfil?.role === 'admin' && <button onClick={exportarExcel} style={{ background: 'none', border: '1px solid #4C8C5C', borderRadius: 8, color: '#7CC98C', fontSize: 12, padding: '6px 10px', cursor: 'pointer' }}><i className="ti ti-file-spreadsheet" style={{ fontSize: 14, verticalAlign: '-2px', marginRight: 4 }} aria-hidden="true"></i>Relatório Excel</button>}
