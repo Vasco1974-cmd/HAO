@@ -125,12 +125,6 @@ export default function App() {
   const [funcionariosPendentes, setFuncionariosPendentes] = useState([]);
   const [loadingPendentes, setLoadingPendentes] = useState(false);
 
-  const [depara, setDepara] = useState([]);
-  const [loadingDepara, setLoadingDepara] = useState(false);
-  const [novoDeparaVariante, setNovoDeparaVariante] = useState('');
-  const [novoDeparaOficial, setNovoDeparaOficial] = useState('');
-  const [enviandoDepara, setEnviandoDepara] = useState(false);
-
   useEffect(() => {
     if (toast) {
       const t = setTimeout(() => setToast(''), 2600);
@@ -277,36 +271,6 @@ export default function App() {
     const { data, error } = await supabase.from('profiles').select('email, funcao, created_at').eq('active', false).order('created_at', { ascending: true });
     setFuncionariosPendentes(error ? [] : data || []);
     setLoadingPendentes(false);
-  }
-
-  async function loadDepara() {
-    setLoadingDepara(true);
-    const { data, error } = await supabase.from('de_para_montador').select('*').order('variante', { ascending: true });
-    setDepara(error ? [] : data || []);
-    setLoadingDepara(false);
-  }
-
-  async function handleSalvarDepara() {
-    setErro('');
-    const variante = novoDeparaVariante.trim().toUpperCase();
-    const oficial = novoDeparaOficial.trim().toUpperCase();
-    if (!variante || !oficial) { setErro('Preencha o nome digitado (variante) e selecione o nome oficial.'); return; }
-    if (variante === oficial) { setErro('O nome digitado e o nome oficial não podem ser iguais.'); return; }
-    setEnviandoDepara(true);
-    const { error } = await supabase.from('de_para_montador').upsert({ variante, nome_oficial: oficial }, { onConflict: 'variante' });
-    setEnviandoDepara(false);
-    if (error) { setErro('Não foi possível salvar o de-para: ' + error.message); return; }
-    setNovoDeparaVariante(''); setNovoDeparaOficial('');
-    await loadDepara();
-    setToast('De-Para salvo. O Dashboard já vai unificar esse nome.');
-  }
-
-  async function handleExcluirDepara(variante) {
-    if (!window.confirm(`Remover o de-para de "${variante}"? Ele voltará a aparecer separado no Dashboard.`)) return;
-    const { error } = await supabase.from('de_para_montador').delete().eq('variante', variante);
-    if (error) { setErro('Não foi possível excluir: ' + error.message); return; }
-    await loadDepara();
-    setToast('De-Para removido.');
   }
 
   async function loadMetaDashboard() {
@@ -1177,7 +1141,7 @@ export default function App() {
             <button type="button" onClick={() => { setErro(''); setScreen('expedicaoMenu'); }} style={{ ...primaryBtn, marginTop: 0 }} className="btn-live"><i className="ti ti-truck" style={{ fontSize: 15, verticalAlign: '-3px', marginRight: 6 }} aria-hidden="true"></i>Expedição</button>
             <button type="button" onClick={() => window.open(window.location.origin + window.location.pathname + '#dashboard', '_blank')} style={{ ...primaryBtn, marginTop: 0, background: '#1D2A22', color: '#7CC98C', border: '1px solid #3E8E5C' }} className="btn-live"><i className="ti ti-gauge" style={{ fontSize: 15, verticalAlign: '-3px', marginRight: 6 }} aria-hidden="true"></i>Dashboard de Produção</button>
             {perfil?.role === 'admin' && (
-              <button type="button" onClick={() => { setErro(''); loadCadastros(); loadFuncionariosPendentes(); loadMetaDashboard(); loadDepara(); setScreen('cadastroConfig'); }} style={{ ...primaryBtn, marginTop: 0, background: '#3E8E5C', color: '#F2FBF4' }} className="btn-live"><i className="ti ti-chart-bar" style={{ fontSize: 15, verticalAlign: '-3px', marginRight: 6 }} aria-hidden="true"></i>KPI de Gestão</button>
+              <button type="button" onClick={() => { setErro(''); loadCadastros(); loadFuncionariosPendentes(); loadMetaDashboard(); setScreen('cadastroConfig'); }} style={{ ...primaryBtn, marginTop: 0, background: '#3E8E5C', color: '#F2FBF4' }} className="btn-live"><i className="ti ti-chart-bar" style={{ fontSize: 15, verticalAlign: '-3px', marginRight: 6 }} aria-hidden="true"></i>KPI de Gestão</button>
             )}
           </div>
           {perfil?.role === 'admin' && (
@@ -1305,40 +1269,6 @@ export default function App() {
               ))}
             </div>
           )}
-
-          <div style={{ borderTop: '1px solid #3A4756', marginTop: 24, paddingTop: 18 }}>
-            <p style={{ ...label, marginTop: 0 }}>De-Para de Nomes (Montador)</p>
-            <p style={{ color: '#8FA3B8', fontSize: 12, margin: '0 0 10px' }}>
-              Se o mesmo montador aparecer duas vezes no Dashboard por causa de um nome digitado errado no passado (ex: "JHONATAN" e "JHONATHAN"), cadastre aqui: o nome digitado errado (variante) vira o nome oficial cadastrado. O Dashboard passa a somar tudo junto.
-            </p>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-              <div style={{ flex: '1 1 200px' }}>
-                <label style={label}>Nome digitado errado (variante)</label>
-                <input style={input} className="field-live" value={novoDeparaVariante} onChange={(e) => setNovoDeparaVariante(e.target.value.toUpperCase())} placeholder="Ex: JHONATAN FERNANDES" />
-              </div>
-              <div style={{ flex: '1 1 200px' }}>
-                <label style={label}>Nome oficial (cadastrado)</label>
-                <select style={input} className="field-live" value={novoDeparaOficial} onChange={(e) => setNovoDeparaOficial(e.target.value)}>
-                  <option value="">Selecionar...</option>
-                  {cadastros.nome_montador.map((item) => <option key={item.valor} value={item.valor}>{item.valor}</option>)}
-                </select>
-              </div>
-              <button type="button" onClick={handleSalvarDepara} disabled={enviandoDepara} style={{ background: '#3E8E5C', border: 'none', borderRadius: 8, color: '#F2FBF4', fontSize: 12, fontWeight: 700, padding: '10px 16px', cursor: enviandoDepara ? 'not-allowed' : 'pointer', opacity: enviandoDepara ? 0.6 : 1 }} className="btn-live">{enviandoDepara ? 'Salvando...' : 'Salvar de-para'}</button>
-            </div>
-
-            {loadingDepara && <p style={{ color: '#8FA3B8', fontSize: 12, marginTop: 14 }}>Carregando...</p>}
-            {!loadingDepara && depara.length === 0 && <p style={{ color: '#8FA3B8', fontSize: 12, marginTop: 14 }}>Nenhum de-para cadastrado ainda.</p>}
-            {!loadingDepara && depara.length > 0 && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 14, maxHeight: 220, overflowY: 'auto' }}>
-                {depara.map((d) => (
-                  <div key={d.variante} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#2A3542', border: '1px solid #3A4756', borderRadius: 6, padding: '6px 8px', fontSize: 12 }}>
-                    <span>{d.variante} <i className="ti ti-arrow-right" style={{ fontSize: 11, verticalAlign: '-1px', margin: '0 4px', color: '#8FA3B8' }} aria-hidden="true"></i> <strong style={{ color: '#7CC98C' }}>{d.nome_oficial}</strong></span>
-                    <button type="button" onClick={() => handleExcluirDepara(d.variante)} style={{ background: 'none', border: 'none', color: '#E8927A', cursor: 'pointer', fontSize: 11 }} className="btn-live">Excluir</button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
         </div>
       )}
 
