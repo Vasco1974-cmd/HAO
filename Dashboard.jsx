@@ -145,6 +145,7 @@ export default function Dashboard() {
   const [meta, setMeta] = useState({ meta_pontos_diaria: 0, quantidade_montadores: 0 });
   const [modelosCadastro, setModelosCadastro] = useState([]);
   const [montadoresCadastro, setMontadoresCadastro] = useState([]);
+  const [deparaMontador, setDeparaMontador] = useState([]);
   const [apontamentos, setApontamentos] = useState([]);
   const [filtro, setFiltro] = useState(null);
   const [periodo, setPeriodo] = useState('mes');
@@ -156,16 +157,18 @@ export default function Dashboard() {
     const inicioMes = primeiroDiaMes(hoje);
     const fimMes = ultimoDiaMes(hoje);
     try {
-      const [metaRes, modelosRes, montadoresRes, apontRes] = await Promise.all([
+      const [metaRes, modelosRes, montadoresRes, deparaRes, apontRes] = await Promise.all([
         supabase.from('metas_dashboard').select('meta_pontos_diaria, quantidade_montadores').eq('id', 1).single(),
         supabase.from('cadastros').select('valor, pontos').eq('tipo', 'modelo'),
         supabase.from('cadastros').select('valor, foto_url').eq('tipo', 'nome_montador'),
+        supabase.from('de_para_montador').select('variante, nome_oficial'),
         supabase.from('dashboard_apontamentos').select('data, nome_montador, modelo, status, tipo_servico, historico_manutencao')
           .gte('data', toISODate(inicioMes)).lte('data', toISODate(fimMes)),
       ]);
       if (metaRes.data) setMeta(metaRes.data);
       setModelosCadastro(modelosRes.data || []);
       setMontadoresCadastro(montadoresRes.data || []);
+      setDeparaMontador(deparaRes.data || []);
       setApontamentos(apontRes.data || []);
       setUltimaAtualizacao(new Date());
     } catch (e) {
@@ -211,11 +214,19 @@ export default function Dashboard() {
     const fotoPorMontador = {};
     montadoresCadastro.forEach((m) => { fotoPorMontador[m.valor] = m.foto_url || null; });
 
+    const mapaDePara = {};
+    deparaMontador.forEach((d) => { mapaDePara[(d.variante || '').trim().toUpperCase()] = d.nome_oficial; });
+    function resolverNomeMontador(nome) {
+      if (!nome) return nome;
+      const chave = nome.trim().toUpperCase();
+      return mapaDePara[chave] || nome;
+    }
+
     const inicioISO = toISODate(inicioPeriodo);
     const fimISO = toISODate(fimPeriodo);
     const registros = apontamentos
       .filter((a) => a.data >= inicioISO && a.data <= fimISO)
-      .map((a) => ({ ...a, pontos: pontosPorModelo[a.modelo] || 0 }));
+      .map((a) => ({ ...a, nome_montador: resolverNomeMontador(a.nome_montador), pontos: pontosPorModelo[a.modelo] || 0 }));
 
     // por montador
     const mapaMontadores = {};
@@ -294,7 +305,7 @@ export default function Dashboard() {
       totalPontosView, totalUnidadesView, pontuacaoAcumuladaView, pontuacaoPlanejadaView,
       mediaDiariaView, modelosView, maxUnidadesModelo, percentualMeta, classificacaoView,
     };
-  }, [apontamentos, modelosCadastro, montadoresCadastro, meta, filtro, periodo]);
+  }, [apontamentos, modelosCadastro, montadoresCadastro, deparaMontador, meta, filtro, periodo]);
 
   const panel = { background: CORES.painel, border: `1px solid ${CORES.painelBorda}`, borderRadius: 16, padding: '18px 18px' };
   const label = { fontSize: 11, letterSpacing: '0.05em', color: CORES.textoFraco, textTransform: 'uppercase', fontFamily: "'Inter', sans-serif", margin: 0 };
