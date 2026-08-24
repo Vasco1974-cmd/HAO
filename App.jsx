@@ -704,6 +704,52 @@ export default function App() {
     setToast(`Relatório baixado: ${registrosInspecionados.length} equipamento(s) inspecionado(s).`);
   }
 
+  async function handleRelatorioManutencao() {
+    setErro('');
+    const { data, error } = await supabase.from('apontamentos').select('*');
+    if (error) { setErro('Não foi possível gerar o relatório: ' + error.message); return; }
+    const linhas = [];
+    (data || []).forEach((registro) => {
+      (registro.historico_manutencao || []).forEach((h) => {
+        linhas.push({
+          'Data': h.data ? new Date(h.data + 'T00:00:00').toLocaleDateString('pt-BR') : '',
+          'Hora': h.dataHora ? new Date(h.dataHora).toLocaleTimeString('pt-BR') : '',
+          'CD nome': registro.cd_nome, 'Modelo': registro.modelo, 'Cor': registro.cor, 'Motor': registro.motor, 'Chassi': registro.chassi,
+          'Anomalia': h.anomalia || '', 'Falha de Montagem': h.falhaMontagem || '', 'Serviço executado': h.servicoExecutado || '', 'Responsável': h.usuarioEmail || '',
+        });
+      });
+    });
+    if (linhas.length === 0) { setToast('Nenhuma manutenção registrada ainda.'); return; }
+    const ws = XLSX.utils.json_to_sheet(linhas);
+    ws['!cols'] = [{ wch: 12 }, { wch: 10 }, { wch: 12 }, { wch: 18 }, { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 28 }, { wch: 28 }, { wch: 34 }, { wch: 22 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Manutenções');
+    XLSX.writeFile(wb, `relatorio_manutencao_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    setToast(`Relatório baixado: ${linhas.length} manutenção(ões).`);
+  }
+
+  async function handleRelatorioExpedicao() {
+    setErro('');
+    const { data, error } = await supabase.from('apontamentos').select('*').eq('status', 'expedido');
+    if (error) { setErro('Não foi possível gerar o relatório: ' + error.message); return; }
+    const registros = data || [];
+    if (registros.length === 0) { setToast('Nenhum equipamento expedido ainda.'); return; }
+    const linhas = registros.map((r) => {
+      const info = r.expedicao_info || {};
+      return {
+        'CD nome': r.cd_nome, 'Modelo': r.modelo, 'Cor': r.cor, 'Motor': r.motor, 'Chassi': r.chassi,
+        'Ordem': info.numeroOrdem || '', 'Data': info.data || '', 'Motorista': info.motorista || '', 'CPF': info.cpf || '',
+        'Placa': info.placa || '', 'Chave Pix': info.chavePix || '', 'Cliente': info.cliente || '', 'Endereço': info.endereco || '', 'Destino': info.destino || '',
+      };
+    });
+    const ws = XLSX.utils.json_to_sheet(linhas);
+    ws['!cols'] = [{ wch: 18 }, { wch: 14 }, { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 10 }, { wch: 12 }, { wch: 20 }, { wch: 16 }, { wch: 12 }, { wch: 18 }, { wch: 20 }, { wch: 28 }, { wch: 18 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Expedido');
+    XLSX.writeFile(wb, `relatorio_expedicao_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    setToast(`Relatório baixado: ${registros.length} equipamento(s) expedido(s).`);
+  }
+
   async function loadExpedicao() {
     setLoadingExpedicao(true);
     const { data, error } = await supabase.from('apontamentos').select('*').eq('status', 'aprovado').order('created_at', { ascending: false });
@@ -1171,10 +1217,10 @@ export default function App() {
             <button type="button" onClick={() => setScreen('menu')} style={{ background: 'none', border: '1px solid #3A4756', borderRadius: 8, color: '#B9C4CE', fontSize: 12, padding: '6px 10px', cursor: 'pointer' }} className="btn-live ghost-live">Sair</button>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <button type="button" onClick={() => setToast('Relatório de Apontamento em breve.')} style={{ ...primaryBtn, marginTop: 0, background: '#2E6DA4', color: '#EAF3FF' }} className="btn-live"><i className="ti ti-clipboard-list" style={{ fontSize: 16, verticalAlign: '-3px', marginRight: 6 }} aria-hidden="true"></i>Apontamento</button>
-            <button type="button" onClick={() => setToast('Relatório de Inspeção em breve.')} style={{ ...primaryBtn, marginTop: 0, background: '#2E6DA4', color: '#EAF3FF' }} className="btn-live"><i className="ti ti-search" style={{ fontSize: 15, verticalAlign: '-3px', marginRight: 6 }} aria-hidden="true"></i>Inspeção</button>
-            <button type="button" onClick={() => setToast('Relatório de Manutenção em breve.')} style={{ ...primaryBtn, marginTop: 0, background: '#2E6DA4', color: '#EAF3FF' }} className="btn-live"><i className="ti ti-tool" style={{ fontSize: 15, verticalAlign: '-3px', marginRight: 6 }} aria-hidden="true"></i>Manutenção</button>
-            <button type="button" onClick={() => setToast('Relatório de Expedição em breve.')} style={{ ...primaryBtn, marginTop: 0, background: '#2E6DA4', color: '#EAF3FF' }} className="btn-live"><i className="ti ti-truck" style={{ fontSize: 15, verticalAlign: '-3px', marginRight: 6 }} aria-hidden="true"></i>Expedição</button>
+            <button type="button" onClick={exportarExcel} style={{ ...primaryBtn, marginTop: 0, background: '#2E6DA4', color: '#EAF3FF' }} className="btn-live"><i className="ti ti-clipboard-list" style={{ fontSize: 16, verticalAlign: '-3px', marginRight: 6 }} aria-hidden="true"></i>Apontamento</button>
+            <button type="button" onClick={handleRelatorioInspecao} style={{ ...primaryBtn, marginTop: 0, background: '#2E6DA4', color: '#EAF3FF' }} className="btn-live"><i className="ti ti-search" style={{ fontSize: 15, verticalAlign: '-3px', marginRight: 6 }} aria-hidden="true"></i>Inspeção</button>
+            <button type="button" onClick={handleRelatorioManutencao} style={{ ...primaryBtn, marginTop: 0, background: '#2E6DA4', color: '#EAF3FF' }} className="btn-live"><i className="ti ti-tool" style={{ fontSize: 15, verticalAlign: '-3px', marginRight: 6 }} aria-hidden="true"></i>Manutenção</button>
+            <button type="button" onClick={handleRelatorioExpedicao} style={{ ...primaryBtn, marginTop: 0, background: '#2E6DA4', color: '#EAF3FF' }} className="btn-live"><i className="ti ti-truck" style={{ fontSize: 15, verticalAlign: '-3px', marginRight: 6 }} aria-hidden="true"></i>Expedição</button>
             <button type="button" onClick={() => window.open(window.location.origin + window.location.pathname + '#dashboard', '_blank')} style={{ ...primaryBtn, marginTop: 0, background: '#2E6DA4', color: '#EAF3FF' }} className="btn-live"><i className="ti ti-gauge" style={{ fontSize: 15, verticalAlign: '-3px', marginRight: 6 }} aria-hidden="true"></i>Dashboard de Produção</button>
           </div>
           {perfil?.role === 'admin' && (
