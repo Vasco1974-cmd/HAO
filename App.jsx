@@ -33,7 +33,7 @@ body { margin: 0; }
 .field-live:focus { border-color: #E8A33D; box-shadow: 0 0 0 3px rgba(232,163,61,0.18); outline: none; }
 `;
 
-const empty = { cdNome: '', nomeMontador: '', nomeMecanico: '', tipoServico: '', modelo: '', cor: '', motor: '', chassi: '', horaInicio: '', horaFim: '', anomalia: '' };
+const empty = { cdNome: '', nomeMontador: '', tipoServico: '', modelo: '', cor: '', motor: '', chassi: '', horaInicio: '', horaFim: '', anomalia: '' };
 
 const CHECKLIST_ITENS = [
   { chave: '1.1', categoria: '1 — Visual do Produto', texto: 'Carenagens isentas de riscos e ou danos visuais?' },
@@ -360,13 +360,9 @@ export default function App() {
       setErro('Preencha CD nome, nome do montador, serviço, modelo, cor, motor e chassi.');
       return;
     }
-    if (form.tipoServico === 'Manutenção' && !form.nomeMecanico.trim()) {
-      setErro('Para serviço de Manutenção, o nome do mecânico é obrigatório.');
-      return;
-    }
     const statusInicial = form.tipoServico === 'Manutenção' ? 'manutencao' : 'pendente';
     const { error } = await supabase.from('apontamentos').insert({
-      cd_nome: form.cdNome, nome_montador: form.nomeMontador, nome_mecanico: form.nomeMecanico || null, tipo_servico: form.tipoServico,
+      cd_nome: form.cdNome, nome_montador: form.nomeMontador, tipo_servico: form.tipoServico,
       modelo: form.modelo, cor: form.cor, motor: form.motor, chassi: form.chassi,
       hora_inicio: form.horaInicio || null, hora_fim: form.horaFim || null, anomalia: form.anomalia || null,
       usuario_email: perfil?.email, user_id: session?.user?.id, status: statusInicial,
@@ -1135,19 +1131,55 @@ export default function App() {
             <p style={{ color: '#8FA3B8', fontSize: 12, margin: '4px 0 0' }}>{perfil?.email} {perfil?.funcao && `· ${perfil.funcao}`} {perfil?.role === 'admin' && <span style={{ color: '#E8A33D' }}>· administrador</span>}</p>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <button type="button" onClick={() => { loadCadastros(); setScreen('producao'); }} style={{ ...primaryBtn, marginTop: 0 }} className="btn-live"><i className="ti ti-clipboard-list" style={{ fontSize: 16, verticalAlign: '-3px', marginRight: 6 }} aria-hidden="true"></i>Montagem</button>
-            <button type="button" onClick={() => { setFiltroCdInspecao(''); setSelectedInspecaoId(null); loadInspecao(); loadCadastros(); setScreen('inspecaoLista'); }} style={{ ...primaryBtn, marginTop: 0 }} className="btn-live"><i className="ti ti-search" style={{ fontSize: 15, verticalAlign: '-3px', marginRight: 6 }} aria-hidden="true"></i>Inspeção</button>
-            <button type="button" onClick={() => { setFiltroCdManutencao(''); loadManutencao(); setScreen('manutencao'); }} style={{ ...primaryBtn, marginTop: 0 }} className="btn-live"><i className="ti ti-tool" style={{ fontSize: 15, verticalAlign: '-3px', marginRight: 6 }} aria-hidden="true"></i>Manutenção</button>
-            <button type="button" onClick={() => { setErro(''); setScreen('expedicaoMenu'); }} style={{ ...primaryBtn, marginTop: 0 }} className="btn-live"><i className="ti ti-truck" style={{ fontSize: 15, verticalAlign: '-3px', marginRight: 6 }} aria-hidden="true"></i>Expedição</button>
-            <button type="button" onClick={() => window.open(window.location.origin + window.location.pathname + '#dashboard', '_blank')} style={{ ...primaryBtn, marginTop: 0, background: '#1D2A22', color: '#7CC98C', border: '1px solid #3E8E5C' }} className="btn-live"><i className="ti ti-gauge" style={{ fontSize: 15, verticalAlign: '-3px', marginRight: 6 }} aria-hidden="true"></i>Dashboard de Produção</button>
+            <button type="button" onClick={() => { setErro(''); setScreen('servicoMenu'); }} style={{ ...primaryBtn, marginTop: 0 }} className="btn-live"><i className="ti ti-tools" style={{ fontSize: 16, verticalAlign: '-3px', marginRight: 6 }} aria-hidden="true"></i>Serviço</button>
+            <button type="button" onClick={() => { setErro(''); setScreen('relatorioMenu'); }} style={{ ...primaryBtn, marginTop: 0 }} className="btn-live"><i className="ti ti-report" style={{ fontSize: 15, verticalAlign: '-3px', marginRight: 6 }} aria-hidden="true"></i>Relatório</button>
             {perfil?.role === 'admin' && (
               <button type="button" onClick={() => { setErro(''); loadCadastros(); loadFuncionariosPendentes(); loadMetaDashboard(); setScreen('cadastroConfig'); }} style={{ ...primaryBtn, marginTop: 0, background: '#3E8E5C', color: '#F2FBF4' }} className="btn-live"><i className="ti ti-chart-bar" style={{ fontSize: 15, verticalAlign: '-3px', marginRight: 6 }} aria-hidden="true"></i>KPI de Gestão</button>
             )}
           </div>
+          <button type="button" onClick={handleSair} style={{ ...primaryBtn, marginTop: 20, background: '#A32D2D', color: '#F6DADA' }} className="btn-live">Sair</button>
+        </div>
+      )}
+
+      {screen === 'servicoMenu' && (
+        <div style={panelStyle} className="screen-enter">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 20 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <button aria-label="Voltar" onClick={() => setScreen('menu')} style={{ background: 'none', border: 'none', color: '#EDEFF2', cursor: 'pointer' }}><i className="ti ti-arrow-left" style={{ fontSize: 20 }} aria-hidden="true"></i></button>
+              <img src={LOGO_SRC} alt="Logo Hao Moto Electric Motors" style={{ width: 26, height: 26, borderRadius: '50%', objectFit: 'cover' }} />
+              <h1 style={h1}>Serviço</h1>
+            </div>
+            <button type="button" onClick={() => setScreen('menu')} style={{ background: 'none', border: '1px solid #3A4756', borderRadius: 8, color: '#B9C4CE', fontSize: 12, padding: '6px 10px', cursor: 'pointer' }} className="btn-live ghost-live">Sair</button>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <button type="button" onClick={() => { loadCadastros(); setScreen('producao'); }} style={{ ...primaryBtn, marginTop: 0 }} className="btn-live"><i className="ti ti-clipboard-list" style={{ fontSize: 16, verticalAlign: '-3px', marginRight: 6 }} aria-hidden="true"></i>Apontamento</button>
+            <button type="button" onClick={() => { setFiltroCdInspecao(''); setSelectedInspecaoId(null); loadInspecao(); loadCadastros(); setScreen('inspecaoLista'); }} style={{ ...primaryBtn, marginTop: 0 }} className="btn-live"><i className="ti ti-search" style={{ fontSize: 15, verticalAlign: '-3px', marginRight: 6 }} aria-hidden="true"></i>Inspeção</button>
+            <button type="button" onClick={() => { setFiltroCdManutencao(''); loadManutencao(); setScreen('manutencao'); }} style={{ ...primaryBtn, marginTop: 0 }} className="btn-live"><i className="ti ti-tool" style={{ fontSize: 15, verticalAlign: '-3px', marginRight: 6 }} aria-hidden="true"></i>Manutenção</button>
+            <button type="button" onClick={() => { setErro(''); setScreen('expedicaoMenu'); }} style={{ ...primaryBtn, marginTop: 0 }} className="btn-live"><i className="ti ti-truck" style={{ fontSize: 15, verticalAlign: '-3px', marginRight: 6 }} aria-hidden="true"></i>Expedição</button>
+          </div>
+        </div>
+      )}
+
+      {screen === 'relatorioMenu' && (
+        <div style={panelStyle} className="screen-enter">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 20 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <button aria-label="Voltar" onClick={() => setScreen('menu')} style={{ background: 'none', border: 'none', color: '#EDEFF2', cursor: 'pointer' }}><i className="ti ti-arrow-left" style={{ fontSize: 20 }} aria-hidden="true"></i></button>
+              <img src={LOGO_SRC} alt="Logo Hao Moto Electric Motors" style={{ width: 26, height: 26, borderRadius: '50%', objectFit: 'cover' }} />
+              <h1 style={h1}>Relatório</h1>
+            </div>
+            <button type="button" onClick={() => setScreen('menu')} style={{ background: 'none', border: '1px solid #3A4756', borderRadius: 8, color: '#B9C4CE', fontSize: 12, padding: '6px 10px', cursor: 'pointer' }} className="btn-live ghost-live">Sair</button>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <button type="button" onClick={() => setToast('Relatório de Apontamento em breve.')} style={{ ...primaryBtn, marginTop: 0, background: '#2E6DA4', color: '#EAF3FF' }} className="btn-live"><i className="ti ti-clipboard-list" style={{ fontSize: 16, verticalAlign: '-3px', marginRight: 6 }} aria-hidden="true"></i>Apontamento</button>
+            <button type="button" onClick={() => setToast('Relatório de Inspeção em breve.')} style={{ ...primaryBtn, marginTop: 0, background: '#2E6DA4', color: '#EAF3FF' }} className="btn-live"><i className="ti ti-search" style={{ fontSize: 15, verticalAlign: '-3px', marginRight: 6 }} aria-hidden="true"></i>Inspeção</button>
+            <button type="button" onClick={() => setToast('Relatório de Manutenção em breve.')} style={{ ...primaryBtn, marginTop: 0, background: '#2E6DA4', color: '#EAF3FF' }} className="btn-live"><i className="ti ti-tool" style={{ fontSize: 15, verticalAlign: '-3px', marginRight: 6 }} aria-hidden="true"></i>Manutenção</button>
+            <button type="button" onClick={() => setToast('Relatório de Expedição em breve.')} style={{ ...primaryBtn, marginTop: 0, background: '#2E6DA4', color: '#EAF3FF' }} className="btn-live"><i className="ti ti-truck" style={{ fontSize: 15, verticalAlign: '-3px', marginRight: 6 }} aria-hidden="true"></i>Expedição</button>
+            <button type="button" onClick={() => window.open(window.location.origin + window.location.pathname + '#dashboard', '_blank')} style={{ ...primaryBtn, marginTop: 0, background: '#2E6DA4', color: '#EAF3FF' }} className="btn-live"><i className="ti ti-gauge" style={{ fontSize: 15, verticalAlign: '-3px', marginRight: 6 }} aria-hidden="true"></i>Dashboard de Produção</button>
+          </div>
           {perfil?.role === 'admin' && (
             <button type="button" onClick={handleBackupCompleto} style={{ ...ghostBtn, marginTop: 16, borderColor: '#E8A33D', color: '#E8A33D' }} className="btn-live ghost-live"><i className="ti ti-database-export" style={{ fontSize: 15, verticalAlign: '-3px', marginRight: 6 }} aria-hidden="true"></i>Backup completo (Excel)</button>
           )}
-          <button type="button" onClick={handleSair} style={{ ...primaryBtn, marginTop: 20, background: '#A32D2D', color: '#F6DADA' }} className="btn-live">Sair</button>
         </div>
       )}
 
@@ -1703,19 +1735,17 @@ export default function App() {
             <option value="">Selecionar...</option>
             {cadastros.cd_nome.map((item) => <option key={item.valor} value={item.valor}>{item.valor}</option>)}
           </select>
+          <label style={label}>Nome montador</label>
+          <select style={input} className="field-live" value={form.nomeMontador} onChange={(e) => setForm({ ...form, nomeMontador: e.target.value })}>
+            <option value="">Selecionar...</option>
+            {cadastros.nome_montador.map((item) => <option key={item.valor} value={item.valor}>{item.valor}</option>)}
+          </select>
           <label style={label}>Serviço</label>
           <select style={input} className="field-live" value={form.tipoServico} onChange={(e) => setForm({ ...form, tipoServico: e.target.value })}>
             <option value="">Selecionar...</option>
             <option value="Montagem">Montagem</option>
             <option value="Manutenção">Manutenção</option>
           </select>
-          <label style={label}>Nome montador</label>
-          <select style={input} className="field-live" value={form.nomeMontador} onChange={(e) => setForm({ ...form, nomeMontador: e.target.value })}>
-            <option value="">Selecionar...</option>
-            {cadastros.nome_montador.map((item) => <option key={item.valor} value={item.valor}>{item.valor}</option>)}
-          </select>
-          <label style={label}>Nome mecânico {form.tipoServico === 'Manutenção' ? <span style={{ color: '#E8927A', textTransform: 'none' }}>(obrigatório)</span> : <span style={{ color: '#8FA3B8', textTransform: 'none' }}>(opcional)</span>}</label>
-          <input style={input} className="field-live" value={form.nomeMecanico} onChange={(e) => setForm({ ...form, nomeMecanico: e.target.value.toUpperCase() })} placeholder="Ex: João Silva" />
           <label style={label}>Modelo</label>
           <select style={input} className="field-live" value={form.modelo} onChange={(e) => setForm({ ...form, modelo: e.target.value })}>
             <option value="">Selecionar...</option>
